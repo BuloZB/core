@@ -250,15 +250,16 @@ class UIBootgrid {
         }
 
         if (bootGridOptions?.selection ?? true) {
-            this.compatOptions['selectableRows'] = 1;
-            if (bootGridOptions?.multiSelect ?? true) {
-                this.compatOptions['selectableRows'] = true;
-            } else {
+            this.compatOptions['selectableRows'] = "highlight";
+            if (!(bootGridOptions?.multiSelect ?? true)) {
                 this.options.multiSelect = false;
             }
-            // TODO rowSelect toggle (currently not support by tabulator)
 
-            this.options.rowSelect = bootGridOptions?.rowSelect ?? false;
+            if (bootGridOptions?.rowSelect ?? false) {
+                this.options.rowSelect = true;
+                this.compatOptions['selectableRows'] = 1;
+                if (this.options.multiSelect) this.compatOptions['selectableRows'] = true;
+            }
         } else {
             this.options.selection = false;
             this.options.multiSelect = false;
@@ -725,6 +726,15 @@ class UIBootgrid {
         this.table.on('cellMouseEnter', onMouseEnter);
 
         this.table.on('rowSelected', (row) => {
+            if (!this.options.rowSelect) {
+                const selected = this.getSelectedRows();
+                if (!this.options.multiSelect && selected.length > 1) {
+                    const curRowId = row.getData()[this.options.datakey];
+                    selected.forEach((r) => {
+                        if (r !== curRowId) this.table.deselectRow(r);
+                    });
+                }
+            }
             this.$element.trigger("selected.rs.jquery.bootgrid", [[row.getData()]]);
         });
 
@@ -1789,6 +1799,53 @@ class UIBootgrid {
 
                 return cell.getValue() ? moment(parseInt(cell.getValue())*1000).format("lll") : "";
             },
+            expand: (cell, formatterParams, onRendered) => {
+                const val = cell.getValue();
+
+                if (!val) return "";
+
+                const isValid =
+                    typeof val === "string" ||
+                    (Array.isArray(val) && val.every(v => typeof v === "string"));
+
+                if (!isValid) {
+                    console.warn(`"expand" formatter encountered invalid data for column '${cell.getField()}'`);
+                    return "";
+                }
+
+                const maxLines = 10;
+                const lines = typeof val === "string" ? val.split(",").map(s => s.trim()).filter(Boolean) : val;
+
+                if (lines.length <= maxLines) {
+                    return $('<div/>')
+                        .css("white-space", "pre-wrap")
+                        .text(lines.join("\n"))[0];
+                }
+
+                const preview = lines.slice(0, maxLines).join("\n") + "\n…";
+                const stateKey = "_expandCollapsed";
+                if (cell[stateKey] == null) cell[stateKey] = true;
+
+                const $wrap = $('<div/>').css("white-space", "pre-wrap");
+                $wrap.attr('title', this._translate('expand')).tooltip({container: 'body', trigger: 'hover'});
+                const $content = $('<div/>').text(cell[stateKey] ? preview : lines.join("\n"));
+                $wrap.append($content);
+
+                onRendered(() => {
+                    this._onCellRendered(cell, formatterParams);
+                    const $td = $(cell.getElement());
+
+                    $td.off("click.expandCollapse").on("click.expandCollapse", (e) => {
+                        e.stopPropagation(); // if rowSelect is set, this will prevent the row from being selected
+
+                        cell[stateKey] = !cell[stateKey];
+                        $content.text(cell[stateKey] ? preview : lines.join("\n"));
+                        this.normalizeRowHeight();
+                    });
+                });
+
+                return $wrap[0];
+            }
         }
     }
 

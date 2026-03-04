@@ -29,6 +29,7 @@
 namespace OPNsense\Core;
 
 use OPNsense\Core\AppConfig;
+use OPNsense\Core\Shell;
 use OPNsense\Core\Syslog;
 
 /**
@@ -468,7 +469,7 @@ class Config extends Singleton
         if (!empty($_SESSION["Username"])) {
             $revision['username'] = $_SESSION["Username"];
         } elseif (!isset($revision['username'])) {
-            $revision['username'] = '(system)';
+            $revision['username'] = '(' . Shell::shell_safe('/usr/bin/whoami') . ')';
         }
         if (!empty($_SERVER['REMOTE_ADDR']) && strpos($revision['username'], '@') === false) {
             $revision['username'] .= "@" . $_SERVER['REMOTE_ADDR'];
@@ -597,7 +598,14 @@ class Config extends Singleton
     {
         $target_dir = dirname($this->config_file) . "/backup/";
         if (file_exists($target_dir)) {
-            $backups = glob($target_dir . "config*.xml");
+            $now = microtime(true);
+            $backups = [];
+            foreach (glob($target_dir . "config-*.xml") as $filename) {
+                $bck_timestamp = (float)substr(explode('config-', $filename)[1], 0, -4);
+                if ($bck_timestamp <= $now) {
+                    $backups[] = $filename;
+                }
+            }
             // sort by date (descending)
             rsort($backups);
             if (!$fetchRevisionInfo) {
