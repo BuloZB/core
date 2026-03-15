@@ -1663,6 +1663,9 @@ class UIBootgrid {
                 requires: ['del'],
                 classname: 'fa fa-trash-o fa-fw',
                 sequence: 400,
+                filter: () => {
+                    return this.options.selection;
+                },
                 footer: true,
                 primary: true,
                 title: this._translate('deleteSelected')
@@ -1800,7 +1803,9 @@ class UIBootgrid {
                 return cell.getValue() ? moment(parseInt(cell.getValue())*1000).format("lll") : "";
             },
             expand: (cell, formatterParams, onRendered) => {
-                const val = cell.getValue();
+                const key = `%${cell.getColumn().getDefinition().field}`;
+                const data = cell.getData();
+                const val = data[key] ?? cell.getValue();
 
                 if (!val) return "";
 
@@ -2245,6 +2250,7 @@ class UIBootgrid {
                 delete col._silentToggle;
             }
         });
+        this.table.redraw();
     }
 
     unsetColumns(columns) {
@@ -2256,6 +2262,7 @@ class UIBootgrid {
                 delete col._silentToggle;
             }
         });
+        this.table.redraw();
     }
 
     search(value, event) {

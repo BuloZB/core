@@ -49,24 +49,42 @@ abstract class FilterBaseController extends ApiMutableModelControllerBase
 
     /* store data for cached getters */
     private array $networks = [];
-    private ?array $catcolors = null;
+    private array $catcolors = [];
+    private ?Category $categoryModel = null;
+
+    private function getCategoryModel()
+    {
+        return $this->categoryModel ??= new Category();
+    }
 
     /**
      * @param array $cats list of category ids
-     * @return array colors
+     * @return array list of meta arrays
      */
     protected function getCategoryColors(array $cats)
     {
-        if ($this->catcolors === null) {
-            $this->catcolors = []; /* init to prevent empty categories initiating models constantly */
-            foreach ((new Category())->categories->category->iterateItems() as $key => $category) {
-                $uuid = (string)$category->getAttributes()['uuid'];
-                $color = trim((string)$category->color->getValue(true));
-                $this->catcolors[$uuid] = !empty($color) ? "#{$color}" : '';
+        $result = [];
+        $mdl = $this->getCategoryModel();
+
+        foreach ($cats as $uuid) {
+            if (isset($this->catcolors[$uuid])) {
+                $result[] = $this->catcolors[$uuid];
+                continue;
+            }
+
+            $node = $mdl->getNodeByReference('categories.category.' . $uuid);
+            if ($node != null) {
+                $this->catcolors[$uuid] = [
+                    'color' => !$node->color->isEmpty() ? "#{$node->color->getValue()}" : '',
+                    'name'  => $node->name->getValue(),
+                    'uuid'  => $uuid,
+                ];
+
+                $result[] = $this->catcolors[$uuid];
             }
         }
-        /* extract catcolors by index */
-        return array_values(array_intersect_key($this->catcolors, array_flip($cats)));
+
+        return $result;
     }
 
     /**
@@ -97,12 +115,15 @@ abstract class FilterBaseController extends ApiMutableModelControllerBase
                     'description' => ''
                 ];
             }
+            /* create alias object for summary */
+            Util::attachAliasObject(new Alias(true));
             foreach (Alias::getCachedData()['aliases']['alias'] ?? [] as $alias) {
                 $this->networks[$alias['name']] = [
+                    'summary' => Util::aliasSummary($alias['name']),
+                    'description' => $alias['description'],
                     'value' => $alias['name'],
                     '%value' => $alias['name'],
                     'isAlias' => true,
-                    'description' => $alias['description'],
                 ];
             }
         }

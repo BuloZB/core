@@ -368,14 +368,13 @@
                                 : '';
                         }
 
-                        const categories = (row["%categories"] || row.categories).split(',');
-                        const colors     = row.category_colors;
+                        const categories = row.category_colors || [];
 
-                        const icons = categories.map((cat, idx) => {
-                            const bgColor = colors?.[idx] ? ` style="color:${colors[idx]};"` : '';
+                        const icons = categories.map(cat => {
+                            const bgColor = cat.color ? ` style="color:${cat.color};"` : '';
 
                             return `
-                                <span class="category-icon" data-toggle="tooltip" title="${cat}">
+                                <span class="category-icon" data-toggle="tooltip" title="${cat.name}">
                                     <i class="fa fa-fw fa-tag"${bgColor}></i>
                                 </span>`;
                         }).join(' ');
@@ -383,7 +382,7 @@
                         return isGroup
                             ? `<span class="category-cell">
                                     <span class="category-cell-content">
-                                        <strong>${icons} ${categories.join(', ')}</strong>
+                                        <strong>${icons} ${categories.map(cat => cat.name).join(', ')}</strong>
                                         <span class="badge chip"
                                                 style="margin-left:6px;">${(row.children && row.children.length) || 0}</span>
                                     </span>
@@ -504,7 +503,7 @@
                         // Return all icons
                         return result;
                     },
-                    // Show Edit alias icon, alias description and integrate "not" functionality
+                    // Show Edit alias icon, alias info and integrate "not" functionality
                     alias: function(column, row) {
                         if (row.isGroup) {
                             return "";
@@ -526,7 +525,7 @@
 
                         const renderedItems = aliasMetadataList.map(aliasInfo => {
                             if (aliasInfo.isAlias) {
-                                const tooltipHtml = aliasInfo.description || aliasInfo.value || "";
+                                const tooltipHtml = aliasInfo.summary || aliasInfo.description || aliasInfo.value || "";
                                 return `
                                     <span data-toggle="tooltip" data-html="true" title="${tooltipHtml}">${aliasInfo.value}&nbsp;</span>
                                     <a href="/ui/firewall/alias/index/${encodeURIComponent(aliasInfo.value)}"
@@ -768,6 +767,7 @@
 
         // Populate interface selectpicker
         function populateInterfaceSelectpicker() {
+            const currentSelection = $("#interface_select").val();
             return $('#interface_select').fetch_options(
                 '/api/firewall/filter/get_interface_list',
                 {},
@@ -804,10 +804,16 @@
                 false,
                 function (data) {  // post_callback, apply the URL hash logic
                     const $select = $('#interface_select');
-                    $select.selectpicker('val', pendingUrlInterface && $select.find(`option[value="${pendingUrlInterface}"]`).length
-                            ? pendingUrlInterface
-                            : '__any'  // Default view when having an invalid interface in hash
-                    );
+                    const interfaceCandidate = (!interfaceInitialized && pendingUrlInterface)
+                        ? pendingUrlInterface
+                        : currentSelection;
+
+                    $select.selectpicker('val', interfaceCandidate);
+
+                    if (!$select.val()) {
+                        $select.selectpicker('val', '__any');
+                    }
+
                     interfaceInitialized = true;
                     pendingUrlInterface = null; // consume the hash so it is not used again
                 },

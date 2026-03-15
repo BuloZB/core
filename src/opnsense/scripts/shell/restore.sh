@@ -36,7 +36,7 @@ if [ ! -d /conf/backup ]; then
 	exit 0
 fi
 
-BACKUPS="$(cd /conf/backup; find . -name "config-*.xml")"
+BACKUPS="$(cd /conf/backup; find -s . -name "config-*.xml" | tail -n 24)"
 
 if [ -z "${BACKUPS}" ]; then
 	echo "No backups available."
@@ -67,16 +67,18 @@ for BACKUP in ${BACKUPS}; do
 "
 done
 
-SORTED="$(echo -n "${DATED}" | sort -r | head -n 19)"
+SORTED="$(echo -n "${DATED}" | sort -r)"
 INDEX=0
 RESTORE=
 
 while [ -z "${RESTORE}" ]; do
+	clear
+
 	echo "${SORTED}" | while read SORT DATETIME BACKUP NOTES; do
 		if [ ${INDEX} -ne 0 ]; then
 			# carefully crafted whitespace pattern with
 			# embedded alignment tab, edit carefully
-			echo "    ${INDEX}.	$(date -r ${DATETIME}) ${NOTES}"
+			printf "%2d. $(date -r ${DATETIME}) ${NOTES}\n" ${INDEX}
 		fi
 		INDEX=$((INDEX+1))
 	done
