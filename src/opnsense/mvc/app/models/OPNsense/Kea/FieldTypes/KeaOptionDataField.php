@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright (C) 2025 Deciso B.V.
+ * Copyright (C) 2026 Deciso B.V.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,28 +26,51 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-namespace OPNsense\Unbound\FieldTypes;
+namespace OPNsense\Kea\FieldTypes;
 
 use OPNsense\Base\FieldTypes\BaseField;
+use OPNsense\Base\Validators\CallbackValidator;
 
-class AliasRefCount extends BaseField
+class KeaOptionDataField extends BaseField
 {
     protected $internalIsContainer = false;
-    private $refcountcache = null;
+    protected $internalValidationMessage = "Invalid option data";
 
-    public function actionPostLoadingEvent()
+    private $internalEncodingSource = 'encoding';
+
+    public function setEncodingSource($value): void
     {
-        if ($this->refcountcache === null) {
-            $this->refcountcache = [];
-            foreach ($this->getParentModel()->aliases->alias->iterateItems() as $node) {
-                $uuid = $node->host->getValue();
-                if (!isset($this->refcountcache[$uuid])) {
-                    $this->refcountcache[$uuid] = 0;
-                }
-                $this->refcountcache[$uuid]++;
-            }
+        if (!empty($value)) {
+            $this->internalEncodingSource = $value;
         }
-        $uuid = $this->getParentNode()->getAttribute('uuid') ?? '';
-        $this->setValue($this->refcountcache[$uuid] ?? '0');
+    }
+
+    public function getValidators()
+    {
+        $validators = parent::getValidators();
+        if (!empty($this->internalValue)) {
+            $validators[] = new CallbackValidator([
+                "callback" => function ($data) {
+
+                    $messages = [];
+
+                    $parent = $this->getParentNode();
+                    $encodingSource = $this->internalEncodingSource;
+
+                    if ($parent !== null && isset($parent->$encodingSource)) {
+                        $encoding = $parent->$encodingSource->getValue();
+
+                        if ($encoding === "hex") {
+                            if (!preg_match('/^([0-9A-F]{2})+$/', $data)) {
+                                $messages[] = gettext("Hex value must contain uppercase hexadecimal byte pairs.");
+                            }
+                        }
+                    }
+
+                    return $messages;
+                }
+            ]);
+        }
+        return $validators;
     }
 }
