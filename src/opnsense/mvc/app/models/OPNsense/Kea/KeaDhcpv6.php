@@ -308,7 +308,12 @@ class KeaDhcpv6 extends BaseModel
             'Dhcp6' => [
                 'valid-lifetime' => $this->general->valid_lifetime->asInt(),
                 'interfaces-config' => [
-                    'interfaces' => $this->getConfigPhysicalInterfaces()
+                    'interfaces' => $this->getConfigPhysicalInterfaces(),
+                    /* socket retries are on a per-interface basis, failing to open one won't affect others */
+                    'service-sockets-max-retries' => !$this->general->service_sockets_max_retries->isEmpty() ?
+                                                     $this->general->service_sockets_max_retries->asInt() : 5,
+                    'service-sockets-retry-wait-time' => !$this->general->service_sockets_retry_wait_time->isEmpty() ?
+                                                         $this->general->service_sockets_retry_wait_time->asInt() : 5000,
                 ],
                 'lease-database' => [
                     'type' => 'memfile',
@@ -330,6 +335,10 @@ class KeaDhcpv6 extends BaseModel
                     ]
                 ],
                 'subnet6' => $this->getConfigSubnets($ddns_enabled),
+                'hooks-libraries' => [
+                    ['library' => '/usr/local/lib/kea/hooks/libdhcp_lease_cmds.so'],
+                    ['library' => '/usr/local/lib/kea/hooks/libdhcp_host_cmds.so']
+                ],
             ]
         ];
         $client_classes = $this->getConfigClientClasses();
@@ -340,42 +349,33 @@ class KeaDhcpv6 extends BaseModel
         if ($expiredLeasesConfig !== null) {
             $cnf['Dhcp6']['expired-leases-processing'] = $expiredLeasesConfig;
         }
-        if (!(new KeaCtrlAgent())->general->enabled->isEmpty()) {
-            $cnf['Dhcp6']['hooks-libraries'] = [];
-            $cnf['Dhcp6']['hooks-libraries'][] = [
-                'library' => '/usr/local/lib/kea/hooks/libdhcp_lease_cmds.so'
-            ];
-            $cnf['Dhcp6']['hooks-libraries'][] = [
-                'library' => '/usr/local/lib/kea/hooks/libdhcp_host_cmds.so'
-            ];
-            if (!$this->ha->enabled->isEmpty()) {
-                $record = [
-                    'library' => '/usr/local/lib/kea/hooks/libdhcp_ha.so',
-                    'parameters' => [
-                        'high-availability' => [
-                            [
-                                'this-server-name' => $this->getConfigThisServerHostname(),
-                                'mode' => 'hot-standby',
-                                'heartbeat-delay' => 10000,
-                                'max-response-delay' => 60000,
-                                'max-ack-delay' => 5000,
-                                'max-unacked-clients' => $this->ha->max_unacked_clients->asInt(),
-                                'sync-timeout' => 60000,
-                            ]
+        if (!$this->ha->enabled->isEmpty()) {
+            $record = [
+                'library' => '/usr/local/lib/kea/hooks/libdhcp_ha.so',
+                'parameters' => [
+                    'high-availability' => [
+                        [
+                            'this-server-name' => $this->getConfigThisServerHostname(),
+                            'mode' => 'hot-standby',
+                            'heartbeat-delay' => 10000,
+                            'max-response-delay' => 60000,
+                            'max-ack-delay' => 5000,
+                            'max-unacked-clients' => $this->ha->max_unacked_clients->asInt(),
+                            'sync-timeout' => 60000,
                         ]
                     ]
-                ];
-                foreach ($this->ha_peers->peer->iterateItems() as $peer) {
-                    if (!isset($record['parameters']['high-availability'][0]['peers'])) {
-                        $record['parameters']['high-availability'][0]['peers'] = [];
-                    }
-                    $record['parameters']['high-availability'][0]['peers'][] = array_map(
-                        fn($x) => $x->getValue(),
-                        iterator_to_array($peer->iterateItems())
-                    );
+                ]
+            ];
+            foreach ($this->ha_peers->peer->iterateItems() as $peer) {
+                if (!isset($record['parameters']['high-availability'][0]['peers'])) {
+                    $record['parameters']['high-availability'][0]['peers'] = [];
                 }
-                $cnf['Dhcp6']['hooks-libraries'][] = $record;
+                $record['parameters']['high-availability'][0]['peers'][] = array_map(
+                    fn($x) => $x->getValue(),
+                    iterator_to_array($peer->iterateItems())
+                );
             }
+            $cnf['Dhcp6']['hooks-libraries'][] = $record;
         }
         if ($ddns_enabled) {
             $cnf['Dhcp6']['dhcp-ddns'] = [

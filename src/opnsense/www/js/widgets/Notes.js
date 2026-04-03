@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Deciso B.V.
+ * Copyright (C) 2026 Konstantinos Spartalis (cspartalis@potatonetworks.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -24,38 +24,50 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-export default class Memory extends BaseGaugeWidget {
-    constructor() {
-        super();
+export default class Notes extends BaseWidget {
+    constructor(config) {
+        super(config);
+        this.configurable = true;
+    }
 
-        this.tickTimeout = 60;
+    getGridOptions() {
+        return {
+            minH: 82,
+        }
+    }
+
+    get dialogTitle() {
+        return this.translations.titleedit;
+    }
+
+    getMarkup() {
+        return $(`
+        <div id="notes-container-${this.id}" class="widget-content">
+            <div id="notes-text-${this.id}" style="padding: 10px; white-space: pre-wrap; word-wrap: break-word;"></div>
+        </div>
+        `);
+    }
+
+    async getWidgetOptions() {
+        return {
+            note: {
+                title: this.translations.title,
+                type: 'textarea',
+                id: `notes-option-${this.id}`,
+                default: '',
+            },
+        };
+    }
+
+    async onWidgetOptionsChanged(options) {
+        $(`#notes-text-${this.id}`).text(options.note || '');
+        this.config.callbacks.updateGrid();
     }
 
     async onMarkupRendered() {
-        let colorMap = ['#D94F00', '#A8C49B', '#E5E5E5'];
+        const config = await this.getWidgetConfig();
+        const note = config.note || '';
 
-        super.createGaugeChart({
-            colorMap: colorMap,
-            labels: [this.translations.used, this.translations.arc, this.translations.free],
-            tooltipLabelCallback: (tooltipItem) => {
-                return `${tooltipItem.label}: ${tooltipItem.parsed} MB`;
-            },
-            primaryText: (data) => {
-                return `${(data[0] / (data[0] + data[1] + data[2]) * 100).toFixed(2)}%`;
-            },
-            secondaryText: (data) => {
-                return `${data[0]} / ${data[0] + data[1] + data[2]} MB`;
-            }
-        });
-    }
-
-    async onWidgetTick() {
-        const data = await this.ajaxCall('/api/diagnostics/system/system_resources');
-        if (data.memory.total !== undefined) {
-            let used = parseInt(data.memory.used_frmt);
-            let arc = data.memory.hasOwnProperty('arc') ? parseInt(data.memory.arc_frmt) : 0;
-            let total = parseInt(data.memory.total_frmt);
-            super.updateChart([(used - arc), arc, total - used]);
-        }
+        $(`#notes-text-${this.id}`).text(note);
     }
 }
