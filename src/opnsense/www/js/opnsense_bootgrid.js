@@ -1596,7 +1596,7 @@ class UIBootgrid {
     }
 
     /**
-     * @param {boolean} inplace keep current page selection
+     * @param {boolean} inplace keep current page selection and maintain scroll position
      */
     _reload(inplace=false) {
         let page = this.table.getPage();
@@ -1607,7 +1607,7 @@ class UIBootgrid {
         if (inplace) {
             this.table.setPage(page).then(() => this._maintainScrollPosition(scrollPos));
         } else {
-            this.table.replaceData().then(() => this._maintainScrollPosition(scrollPos));
+            this.table.replaceData();
         }
     }
 
