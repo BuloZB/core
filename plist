@@ -881,6 +881,7 @@
 /usr/local/opnsense/mvc/app/models/OPNsense/Radvd/Migrations/M1_0_0.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Radvd/Radvd.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Radvd/Radvd.xml
+/usr/local/opnsense/mvc/app/models/OPNsense/Routes/Migrations/M1_0_1.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Routes/Route.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Routes/Route.xml
 /usr/local/opnsense/mvc/app/models/OPNsense/Routing/FieldTypes/GatewayField.php
@@ -1209,7 +1210,6 @@
 /usr/local/opnsense/scripts/firmware/register.php
 /usr/local/opnsense/scripts/firmware/reinstall.sh
 /usr/local/opnsense/scripts/firmware/remove.sh
-/usr/local/opnsense/scripts/firmware/repos/FreeBSD.php
 /usr/local/opnsense/scripts/firmware/repos/OPNsense.php
 /usr/local/opnsense/scripts/firmware/repos/README
 /usr/local/opnsense/scripts/firmware/resync.sh

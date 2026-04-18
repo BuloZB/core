@@ -1,8 +1,7 @@
-#!/usr/local/bin/php
 <?php
 
 /*
- * Copyright (C) 2023 Franco Fichtner <franco@opnsense.org>
+ * Copyright (C) 2026 Deciso B.V.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,7 +26,24 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-$conf = '/usr/local/etc/pkg/repos/FreeBSD.conf';
+namespace OPNsense\Routes\Migrations;
 
-/* ensure that FreeBSD repo is off to avoid obvious breakage */
-@copy($conf . '.sample', $conf);
+use OPNsense\Base\BaseModelMigration;
+use OPNsense\Core\Config;
+
+class M1_0_1 extends BaseModelMigration
+{
+    public function run($model)
+    {
+        $cfgObj = Config::getInstance()->object();
+        if (isset($cfgObj->staticroutes->route)) {
+            $modelRoutes = iterator_to_array($model->route->iterateItems());
+            foreach ($cfgObj->staticroutes->route as $route) {
+                $uuid = (string)$route['uuid'];
+                if (!empty($uuid) && isset($modelRoutes[$uuid]) && isset($route->disabled)) {
+                    $modelRoutes[$uuid]->enabled = empty((string)$route->disabled) ? '1' : '0';
+                }
+            }
+        }
+    }
+}
