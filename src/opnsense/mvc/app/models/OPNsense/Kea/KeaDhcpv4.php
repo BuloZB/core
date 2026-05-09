@@ -109,16 +109,13 @@ class KeaDhcpv4 extends BaseModel
                 !$this->general->interfaces->isEmpty();
     }
 
-    /**
-     *
-     */
     private function getConfigPhysicalInterfaces()
     {
         $result = [];
-        $cfg = Config::getInstance()->object();
-        foreach ($this->general->interfaces->getValues() as $if) {
-            if (isset($cfg->interfaces->$if) && !empty($cfg->interfaces->$if->if)) {
-                $result[] = (string)$cfg->interfaces->$if->if;
+        foreach ($this->general->interfaces->getValues() as $interface) {
+            $device = Util::getRealInterface($interface, 'inet');
+            if (!empty($device)) {
+                $result[] = $device;
             }
         }
         return $result;
@@ -175,6 +172,10 @@ class KeaDhcpv4 extends BaseModel
                 'pools' => [],
                 'reservations' => []
             ];
+            /* add valid-lifetime at this level if given */
+            if (!$subnet->valid_lifetime->isEmpty()) {
+                $record['valid-lifetime'] = $subnet->valid_lifetime->asInt();
+            }
             /* add description and other custom keys - not parsed by KEA */
             $record['user-context'] = ['uuid' => $subnet->getAttribute('uuid')];
             if (!$subnet->description->isEmpty()) {
@@ -268,6 +269,9 @@ class KeaDhcpv4 extends BaseModel
                 $record['ddns-override-no-update'] = !$subnet->ddns_override_no_update->isEmpty();
                 $record['ddns-override-client-update'] = !$subnet->ddns_override_client_update->isEmpty();
                 $record['ddns-update-on-renew'] = !$subnet->ddns_update_on_renew->isEmpty();
+                if (!$subnet->ddns_conflict_resolution_mode->isEmpty()) {
+                    $record['ddns-conflict-resolution-mode'] = $subnet->ddns_conflict_resolution_mode->getValue();
+                }
             }
             $result[] = $record;
         }
