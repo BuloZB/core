@@ -850,7 +850,7 @@ function interface_reset($interface, $ifacecfg = false, $suspend = false)
         case 'slaac':
         case 'dhcp6':
             interface_dhcpv6_prepare($interface, $ifcfg, true);
-            killbypid("/var/run/dhcp6c.{$device}.pid", 'HUP');
+            killbypid('/var/run/dhcp6c.pid', 'HUP');
             break;
         case 'idassoc6':
         case 'track6':
@@ -982,7 +982,7 @@ function interface_ppps_hardware($device)
 {
     $devices = [$device];
 
-    foreach (config_read_array('ppps', 'ppp') as $ppp) {
+    foreach (config_read_array('ppps', 'ppp', false) as $ppp) {
         if ($device == $ppp['if']) {
             $devices = [];
             foreach (explode(',', $ppp['ports']) as $port) {
@@ -2582,7 +2582,7 @@ function interface_track6_configure($interface, $lancfg, $reload = false)
         case 'dhcp6':
             if ($reload || !isset($lancfg['enable'])) {
                 interface_dhcpv6_prepare($lancfg['track6-interface'], $trackcfg);
-                killbypid("/var/run/dhcp6c.{$trackcfg['if']}.pid", 'HUP');
+                killbypid('/var/run/dhcp6c.pid', 'HUP');
             }
             break;
     }
@@ -2866,16 +2866,15 @@ function interface_dhcpv6_configure($interface, $wancfg)
     }
 
     /* always kill rtsold in case of reconfigure */
-    killbypid("/var/run/rtsold.{$wancfg['if']}.pid");
+    killbypid('/var/run/rtsold.pid');
     @unlink("/tmp/rtsold.{$wancfg['if']}.done");
 
-    $rtsold_frmt = ['/usr/sbin/rtsold -%s -iu -p %s -A %s -R %s %s'];
+    $rtsold_frmt = ['/usr/sbin/rtsold -%s -aiu -p %s -A %s -R %s'];
     $rtsold_args = [
         $settings->dhcp6_debug->isEmpty() ? 'd' : 'D',
-        "/var/run/rtsold.{$wancfg['if']}.pid",
+        '/var/run/rtsold.pid',
         '/usr/local/opnsense/scripts/interfaces/rtsold_script.sh',
         '/usr/local/opnsense/scripts/interfaces/rtsold_resolvconf.sh',
-        $wancfg['if'],
     ];
 
     /* fire up rtsold for IPv6 RAs first */
@@ -2929,6 +2928,21 @@ function interface_dhcpv6_prepare($interface, $wancfg, $cleanup = false)
     } else {
         @unlink("/var/etc/dhcp6c.{$device}.conf");
     }
+
+    $dhcp6cconf = '';
+
+    /* merge configs and prepare single instance of dhcp6c for startup */
+    foreach (legacy_config_get_interfaces(['enable' => true, 'virtual' => false]) as $_interface => $_wancfg) {
+        if (empty($_wancfg['ipaddrv6']) || ($_wancfg['ipaddrv6'] != 'dhcp6' && $_wancfg['ipaddrv6'] != 'slaac')) {
+            continue;
+        }
+
+        if (file_exists("/var/etc/dhcp6c.{$_wancfg['if']}.conf")) {
+            $dhcp6cconf .= file_get_contents("/var/etc/dhcp6c.{$_wancfg['if']}.conf");
+        }
+    }
+
+    @file_put_contents('/var/etc/dhcp6c.conf', $dhcp6cconf);
 }
 
 function DHCP6_Config_File_Basic($interface, $wancfg, $wanif)
@@ -3517,7 +3531,7 @@ function interface_parent_devices($device, $as_interface = false)
 
     if (strstr($device, 'vlan') || strstr($device, 'qinq')) {
         /* XXX maybe if we have a qinq type return both parents? */
-        foreach (config_read_array('vlans', 'vlan') as $vlan) {
+        foreach (config_read_array('vlans', 'vlan', false) as $vlan) {
             if ($device == $vlan['vlanif']) {
                 $parents[] = $vlan['if'];
                 break;
@@ -3534,7 +3548,7 @@ function interface_parent_devices($device, $as_interface = false)
             }
         }
     } elseif (strstr($device, 'lagg')) {
-        foreach (config_read_array('laggs', 'lagg') as $lagg) {
+        foreach (config_read_array('laggs', 'lagg', false) as $lagg) {
             if ($device == $lagg['laggif']) {
                 foreach (explode(',', $lagg['members']) as $member) {
                     $parents[] = $member;
@@ -3580,7 +3594,7 @@ function link_interface_to_track6($wanif, $update = false)
         return $list;
     }
 
-    $wancfg = config_read_array('interfaces', $wanif);
+    $wancfg = config_read_array('interfaces', $wanif, false);
 
     if (!isset($wancfg['enable']) || empty($wancfg['ipaddrv6'])) {
         return $list;
@@ -4011,7 +4025,7 @@ function interfaces_addresses($interfaces, $as_subnet = false, $ifconfig_details
 
 function interfaces_has_prefix_only($interface)
 {
-    $interfaces_a = config_read_array('interfaces');
+    $interfaces_a = config_read_array('interfaces', false);
     $ret = false;
 
     switch ($interfaces_a[$interface]['ipaddrv6'] ?? 'none') {
