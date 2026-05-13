@@ -88,6 +88,11 @@ class KeaDhcpv4 extends BaseModel
             if (!Util::isIPInCIDR($reservation->ip_address->getValue(), $subnet)) {
                 $messages->appendMessage(new Message(gettext("Address not in specified subnet"), $key . ".ip_address"));
             }
+            if (!$reservation->client_id->isEmpty() && !$reservation->hw_address->isEmpty()) {
+                $messages->appendMessage(new Message(gettext("Either a client ID or a MAC address should be specified, but not both"), $key . ".hw_address"));
+            } elseif ($reservation->client_id->isEmpty() && $reservation->hw_address->isEmpty()) {
+                $messages->appendMessage(new Message(gettext("Either a client ID or a MAC address should be specified."), $key . ".hw_address"));
+            }
         }
 
         return $messages;
@@ -173,7 +178,7 @@ class KeaDhcpv4 extends BaseModel
                 'reservations' => []
             ];
             /* add valid-lifetime at this level if given */
-            if (!$subnet->valid_lifetime->isEmpty()) {
+            if ($subnet->valid_lifetime->isSet()) {
                 $record['valid-lifetime'] = $subnet->valid_lifetime->asInt();
             }
             /* add description and other custom keys - not parsed by KEA */
@@ -198,6 +203,8 @@ class KeaDhcpv4 extends BaseModel
                 }
                 if (!$reservation->hw_address->isEmpty()) {
                     $res['hw-address'] = str_replace('-', ':', $reservation->hw_address->getValue());
+                } elseif (!$reservation->client_id->isEmpty()) {
+                    $res['client-id'] = $reservation->client_id->getValue();
                 }
 
                 // Add DHCP option-data elements for reservations
@@ -313,13 +320,15 @@ class KeaDhcpv4 extends BaseModel
         $cnf = [
             'Dhcp4' => [
                 'valid-lifetime' => $this->general->valid_lifetime->asInt(),
+                'decline-probation-period' => $this->general->decline_probation_period->isSet() ?
+                                              $this->general->decline_probation_period->asInt() : 600,
                 'interfaces-config' => [
                     'interfaces' => $this->getConfigPhysicalInterfaces(),
                     'dhcp-socket-type' => $this->general->dhcp_socket_type->getValue(),
                     /* socket retries are on a per-interface basis, failing to open one won't affect others */
-                    'service-sockets-max-retries' => !$this->general->service_sockets_max_retries->isEmpty() ?
+                    'service-sockets-max-retries' => $this->general->service_sockets_max_retries->isSet() ?
                                                      $this->general->service_sockets_max_retries->asInt() : 5,
-                    'service-sockets-retry-wait-time' => !$this->general->service_sockets_retry_wait_time->isEmpty() ?
+                    'service-sockets-retry-wait-time' => $this->general->service_sockets_retry_wait_time->isSet() ?
                                                          $this->general->service_sockets_retry_wait_time->asInt() : 5000,
                 ],
                 'lease-database' => [
@@ -391,6 +400,6 @@ class KeaDhcpv4 extends BaseModel
                 'server-port' => $ddns->general->server_port->asInt(),
             ];
         }
-        File::file_put_contents($target, json_encode($cnf, JSON_PRETTY_PRINT), 0600);
+        File::file_put_contents($target, json_encode($cnf, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), 0600);
     }
 }
