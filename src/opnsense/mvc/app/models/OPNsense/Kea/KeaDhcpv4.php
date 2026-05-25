@@ -181,6 +181,10 @@ class KeaDhcpv4 extends BaseModel
             if ($subnet->valid_lifetime->isSet()) {
                 $record['valid-lifetime'] = $subnet->valid_lifetime->asInt();
             }
+            /* add allocator if selected */
+            if (!$subnet->allocator->isEmpty()) {
+                $record['allocator'] = $subnet->allocator->getValue();
+            }
             /* add description and other custom keys - not parsed by KEA */
             $record['user-context'] = ['uuid' => $subnet->getAttribute('uuid')];
             if (!$subnet->description->isEmpty()) {
@@ -205,6 +209,10 @@ class KeaDhcpv4 extends BaseModel
                     $res['hw-address'] = str_replace('-', ':', $reservation->hw_address->getValue());
                 } elseif (!$reservation->client_id->isEmpty()) {
                     $res['client-id'] = $reservation->client_id->getValue();
+                }
+
+                if (!$reservation->next_server->isEmpty()) {
+                    $res['next-server'] = $reservation->next_server->getValue();
                 }
 
                 // Add DHCP option-data elements for reservations
@@ -399,6 +407,10 @@ class KeaDhcpv4 extends BaseModel
                 'server-ip' => $ddns->general->server_ip->getValue(),
                 'server-port' => $ddns->general->server_port->asInt(),
             ];
+        }
+        /* Compatibility flags */
+        foreach ($this->general->compatibility->getValues() as $opt) {
+            $cnf['Dhcp4']['compatibility'][$opt] = true;
         }
         File::file_put_contents($target, json_encode($cnf, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), 0600);
     }

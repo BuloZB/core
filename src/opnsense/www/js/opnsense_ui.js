@@ -98,20 +98,15 @@ function saveFormToEndpoint(url, formid, callback_ok, disable_dialog, callback_f
                     });
                 }
 
-                if (callback_fail !== undefined) {
+                if ( callback_fail !== undefined ) {
                     // execute callback function
                     callback_fail(data);
                 }
-            } else {
-                // trigger base apply button alert
-                $(document).trigger('settings-changed');
-
-                if (callback_ok !== undefined) {
-                    // execute callback function
-                    callback_ok(data);
-                }
+            } else if ( callback_ok !== undefined ) {
+                // execute callback function
+                callback_ok(data);
             }
-        } else if (callback_fail !== undefined) {
+        } else if ( callback_fail !== undefined ) {
             callback_fail(data);
         }
     });
@@ -627,6 +622,7 @@ stdDialogRemoveItem.defaults = {
  *      data-label="Apply text"
  *      data-icon="fa fa-icon"
  *      data-service-widget="service" (optional service widget to signal)
+ *      data-exclude-scope="tab id" (optional comma-separated tab ids to hide action button in)
  *      data-error-title="My error message"
  */
 $.fn.SimpleActionButton = function (params) {
@@ -655,6 +651,17 @@ $.fn.SimpleActionButton = function (params) {
         $(document).on("settings-changed", function () {
             $('#change_message_base_form').show().parent('.alert').addClass('alert-info').removeClass('content-box');
         });
+
+        const excludeScope = this_button?.data('exclude-scope');
+        if (excludeScope) {
+            $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+                if (excludeScope.split(',').map(s => s.trim()).includes(e.target.id)) {
+                    this_button.closest('.page-content-main').hide();
+                } else {
+                    this_button.closest('.page-content-main').show();
+                }
+            });
+        }
 
         this_button.on('click', function () {
             const icon = this_button.find('.reload_progress');

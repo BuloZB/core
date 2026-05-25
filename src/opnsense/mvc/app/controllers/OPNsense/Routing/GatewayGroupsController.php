@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright (C) 2015-2026 Deciso B.V.
+ * Copyright (C) 2026 Deciso B.V.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,35 +26,16 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-namespace OPNsense\Base\FieldTypes;
+namespace OPNsense\Routing;
 
-/**
- * Class OptionField
- * @package OPNsense\Base\FieldTypes
- */
-class OptionField extends BaseListField
+use OPNsense\Base\IndexController;
+
+class GatewayGroupsController extends IndexController
 {
-    /**
-     * setter for option values
-     * @param $data
-     */
-    public function setOptionValues($data)
+    public function indexAction()
     {
-        if (is_array($data)) {
-            $this->internalOptionList = [];
-            // copy options to internal structure, make sure we don't copy in array structures
-            foreach ($data as $key => $value) {
-                if (!is_array($value)) {
-                    $this->internalOptionList[$key] = strlen($value) ? gettext($value) : $key;
-                } else {
-                    foreach ($value as $subkey => $subval) {
-                        $this->internalOptionList[$subkey] = [
-                            'value' => strlen($subval) ? gettext($subval) : $key,
-                            'optgroup' => gettext($key),
-                        ];
-                    }
-                }
-            }
-        }
+        $this->view->formDialogEditGatewayGroup = $this->getForm('dialogEditGatewayGroup');
+        $this->view->formGridGatewayGroups = $this->getFormGrid('dialogEditGatewayGroup');
+        $this->view->pick('OPNsense/Routing/groups');
     }
 }

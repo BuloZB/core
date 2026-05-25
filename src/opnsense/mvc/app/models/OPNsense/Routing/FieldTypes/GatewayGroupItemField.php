@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright (C) 2015-2026 Deciso B.V.
+ * Copyright (C) 2026 Deciso B.V.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,35 +26,41 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-namespace OPNsense\Base\FieldTypes;
+namespace OPNsense\Routing\FieldTypes;
 
-/**
- * Class OptionField
- * @package OPNsense\Base\FieldTypes
- */
-class OptionField extends BaseListField
+use OPNsense\Base\FieldTypes\JsonKeyValueStoreField;
+
+class GatewayGroupItemField extends JsonKeyValueStoreField
 {
-    /**
-     * setter for option values
-     * @param $data
-     */
-    public function setOptionValues($data)
+    protected $internalIsContainer = false;
+
+    public function setValue($value)
     {
-        if (is_array($data)) {
-            $this->internalOptionList = [];
-            // copy options to internal structure, make sure we don't copy in array structures
-            foreach ($data as $key => $value) {
-                if (!is_array($value)) {
-                    $this->internalOptionList[$key] = strlen($value) ? gettext($value) : $key;
-                } else {
-                    foreach ($value as $subkey => $subval) {
-                        $this->internalOptionList[$subkey] = [
-                            'value' => strlen($subval) ? gettext($subval) : $key,
-                            'optgroup' => gettext($key),
-                        ];
-                    }
-                }
+        if (is_a($value, 'SimpleXMLElement') && array_filter((array)$value, fn($v) => strpos((string)$v, '|') !== false)) {
+            $tiers = [];
+            foreach ($value as $item) {
+                list($name, $tier) = explode('|', $item);
+                $tiers[$tier][] = $name;
             }
+
+            ksort($tiers);
+            foreach ($tiers as $tieridx => $tier) {
+                $gwnames = implode(',', $tier);
+                if ($tieridx == 1) {
+                    parent::setValue($gwnames);
+                    continue;
+                }
+
+                if ($tieridx > 5) {
+                    /* bad data */
+                    return;
+                }
+
+                $property = 'item' . ($tieridx > 1 ? $tieridx : '');
+                $this->getParentNode()->$property->setValue($gwnames);
+            }
+        } elseif (!empty($value)) {
+            return parent::setValue($value);
         }
     }
 }

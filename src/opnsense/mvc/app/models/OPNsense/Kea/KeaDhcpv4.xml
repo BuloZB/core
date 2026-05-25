@@ -1,6 +1,6 @@
 <model>
     <mount>//OPNsense/Kea/dhcp4</mount>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
     <description>Kea DHCPv4 configuration</description>
     <items>
         <general>
@@ -38,6 +38,15 @@
                     <raw>raw</raw>
                 </OptionValues>
             </dhcp_socket_type>
+            <compatibility type="OptionField">
+                <Multiple>Y</Multiple>
+                <OptionValues>
+                    <exclude-first-last-24/>
+                    <ignore-dhcp-server-identifier/>
+                    <ignore-rai-link-selection/>
+                    <lenient-option-parsing/>
+                </OptionValues>
+            </compatibility>
         </general>
         <lexpire>
             <hold_reclaimed_time type="IntegerField">
@@ -156,6 +165,14 @@
                     <Default>1</Default>
                     <Required>Y</Required>
                 </match-client-id>
+                <allocator type="OptionField">
+                    <BlankDesc>Default</BlankDesc>
+                    <OptionValues>
+                        <iterative>Iterative</iterative>
+                        <random>Random</random>
+                        <flq>Free Lease Queue</flq>
+                    </OptionValues>
+                </allocator>
                 <pools type=".\KeaPoolsField"/>
                 <ddns_forward_zone type="HostnameField">
                     <IpAllowed>N</IpAllowed>
@@ -301,6 +318,10 @@
                     <IsDNSName>Y</IsDNSName>
                 </hostname>
                 <description type="DescriptionField"/>
+                <next_server type="NetworkField">
+                    <NetMaskAllowed>N</NetMaskAllowed>
+                    <AddressFamily>ipv4</AddressFamily>
+                </next_server>
                 <option_data>
                     <domain_name_servers type="NetworkField">
                         <NetMaskAllowed>N</NetMaskAllowed>
