@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright (C) 2022 Deciso B.V.
+ * Copyright (C) 2026 Deciso B.V.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,15 +26,28 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-namespace OPNsense\Unbound;
+namespace OPNsense\System\Status;
 
-use OPNsense\Base\IndexController;
+use OPNsense\System\AbstractStatus;
+use OPNsense\System\SystemStatusCode;
+use OPNsense\Hostdiscovery\Hostwatch;
 
-class OverviewController extends IndexController
+class HostDiscoveryStatus extends AbstractStatus
 {
-    public function indexAction()
+    public function __construct()
     {
-        $this->view->pick('OPNsense/Unbound/overview');
-        $this->view->dnsReportingForm = $this->getForm('dnsreporting');
+        $this->internalPriority = 2;
+        $this->internalPersistent = true;
+        $this->internalTitle = gettext('Host discovery status');
+        $this->internalIsBanner = true;
+        $this->internalScope[] = '/ui/hostdiscovery/settings';
+    }
+
+    public function collectStatus()
+    {
+        if ((new Hostwatch())->general->enabled->isEmpty()) {
+            $this->internalMessage = gettext('Host discovery service is disabled, the hosts currently known by this firewall are fetched via ARP and NDP');
+            $this->internalStatus = SystemStatusCode::WARNING;
+        }
     }
 }

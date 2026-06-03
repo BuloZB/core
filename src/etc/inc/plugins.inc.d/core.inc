@@ -266,19 +266,11 @@ function core_cron()
     /**
      * rrd graph collector, only schedule execution when enabled
      */
-    if (isset($config['rrd']['enable'])) {
+    if (!(new \OPNsense\Diagnostics\SystemHealth())->enabled->isEmpty()) {
         $jobs[]['autocron'] = [
             '/usr/local/bin/flock -n -E 0 -o /tmp/updaterrd.lock /usr/local/opnsense/scripts/health/updaterrd.php',
             '*'
         ];
-    }
-
-    if (!empty($config['system']['rrdbackup']) && $config['system']['rrdbackup'] > 0) {
-        $jobs[]['autocron'] = ['/usr/local/etc/rc.syshook.d/backup/20-rrd', '0', '*/' . $config['system']['rrdbackup']];
-    }
-
-    if (!empty($config['system']['netflowbackup']) && $config['system']['netflowbackup'] > 0) {
-        $jobs[]['autocron'] = ['/usr/local/etc/rc.syshook.d/backup/20-netflow', '0', '*/' . $config['system']['netflowbackup']];
     }
 
     foreach ((new OPNsense\Backup\BackupFactory())->listProviders() as $classname => $provider) {
