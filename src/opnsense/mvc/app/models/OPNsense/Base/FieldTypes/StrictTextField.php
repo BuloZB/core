@@ -1,8 +1,7 @@
-#!/usr/local/bin/php
 <?php
 
 /*
- * Copyright (C) 2020 Deciso B.V.
+ * Copyright (C) 2026 Deciso B.V.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,14 +26,26 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-if (count($argv) >= 2) {
-    $revision = preg_replace("/[^0-9.]/", "", $argv[1]);
-    if (!empty($revision)) {
-        $lckfile = "/tmp/filter_{$revision}.lock";
-        if (file_exists($lckfile)) {
-            unlink($lckfile);
-            exit(0);
-        }
-    }
+namespace OPNsense\Base\FieldTypes;
+
+/**
+ * Class StrictTextField
+ * @package OPNsense\Base\FieldTypes
+ */
+class StrictTextField extends TextField
+{
+    /**
+     * @var bool allow spaces and tabs
+     */
+    protected $internalAllowSpaces = false;
+
+    /**
+     * @var bool allow newlines
+     */
+    protected $internalAllowNewlines = false;
+
+    /**
+     * @var bool allow special control characters
+     */
+    protected $internalAllowSpecial = false;
 }
-exit(1);

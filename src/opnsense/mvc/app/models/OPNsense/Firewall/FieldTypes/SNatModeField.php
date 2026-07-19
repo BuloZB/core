@@ -1,8 +1,7 @@
-#!/usr/local/bin/php
 <?php
 
 /*
- * Copyright (C) 2020 Deciso B.V.
+ * Copyright (C) 2026 Deciso B.V.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,28 +26,31 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-require_once('script/load_phalcon.php');
+namespace OPNsense\Firewall\FieldTypes;
 
-if (count($argv) >= 2) {
-    $revision = preg_replace("/[^0-9.]/", "", $argv[1]);
-    if (!empty($revision)) {
-        $lckfile = "/tmp/filter_{$revision}.lock";
-        file_put_contents($lckfile, "");
-        // give the api 60 seconds to callback
-        for ($i = 0; $i < 60; ++$i) {
-            if (!file_exists($lckfile)) {
-                // got feedback
-                exit(0);
-            }
-            sleep(1);
+use OPNsense\Base\FieldTypes\OptionField;
+use OPNsense\Core\Config;
+
+class SNatModeField extends OptionField
+{
+    public const DEFAULT_MODE = 'automatic';
+    public const MODES = ['automatic', 'hybrid', 'advanced', 'disabled'];
+
+    public static function isValidMode($mode): bool
+    {
+        return in_array($mode, self::MODES, true);
+    }
+
+    protected function actionPostLoadingEvent()
+    {
+        $mode = (string)(Config::getInstance()->object()->nat?->outbound?->mode ?? '');
+
+        if (!self::isValidMode($mode)) {
+            $mode = self::DEFAULT_MODE;
         }
-        @unlink($lckfile);
-        // no feedback, revert
-        $mdlFilter = new OPNsense\Firewall\Filter();
-        if ($mdlFilter->rollback($revision)) {
-            (new OPNsense\Core\Backend())->configdRun('filter reload');
-        } else {
-            syslog(LOG_WARNING, "unable to revert to unexisting revision : {$revision}");
-        }
+
+        $this->setValue($mode);
+
+        return parent::actionPostLoadingEvent();
     }
 }

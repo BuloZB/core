@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright (C) 2016-2017 Deciso B.V.
+ * Copyright (C) 2016-2026 Deciso B.V.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -137,7 +137,7 @@ class FilterRule extends Rule
             }
         } elseif (empty($rule['disablereplyto']) && ($rule['direction'] ?? "") != 'any' && empty($rule['interfacenot'])) {
             $proto = $rule['ipprotocol'];
-            if (!empty($this->interfaceMapping[$rule['interface']]['if']) && empty($rule['gateway'])) {
+            if (!empty($rule['interface']) && !empty($this->interfaceMapping[$rule['interface']]['if']) && empty($rule['gateway'])) {
                 $if = $this->interfaceMapping[$rule['interface']]['if'];
                 switch ($proto) {
                     case "inet6":
@@ -191,6 +191,10 @@ class FilterRule extends Rule
             ) {
                 $rule['disabled'] = true;
                 $this->log("Gateway protocol mismatch");
+            }
+            if (!empty($rule['type']) && $rule['type'] != 'pass') {
+                unset($rule['gateway'], $rule['reply']);
+                $this->log("Gateway not allowed for block rules");
             }
             if (!isset($rule['quick'])) {
                 // all rules are quick by default except floating

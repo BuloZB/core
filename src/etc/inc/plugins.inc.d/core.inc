@@ -31,7 +31,7 @@ function core_services()
     $services = [];
 
     $services[] = [
-        'description' => gettext('System Configuration Daemon'),
+        'description' => gettext('Configd'),
         'pidfile' => '/var/run/configd.pid',
         'mwexec' => [
             'restart' => ['/usr/local/etc/rc.d/configd restart'],
@@ -80,7 +80,7 @@ function core_services()
     ];
 
     $services[] = [
-        'description' => gettext('Syslog-ng Daemon'),
+        'description' => gettext('Syslog-ng'),
         'php' => [
             'start' => ['system_syslog_start'],
             'restart' => ['system_syslog_start'],
@@ -380,9 +380,10 @@ function core_xmlrpc_sync()
 function core_configure()
 {
     return [
+        'bootup' => ['system_powerd_configure'],
+        'crl' => ['core_trust_crl'],
         /* XXX these are all specialized and try to avoid extra script use */
         'cache_flush' => ['system_cache_flush'],
-        'crl' => ['core_trust_crl'],
         'dns_reload' => ['system_resolver_configure'],
         'firmware_reload' => ['system_firmware_configure'],
         'networking_reload' => [

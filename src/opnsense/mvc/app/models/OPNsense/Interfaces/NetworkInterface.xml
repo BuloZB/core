@@ -1,0 +1,27 @@
+<model>
+    <mount>:memory:</mount>
+    <version>0.0.1</version>
+    <description>Interface assignments</description>
+    <items>
+        <interface type="ArrayField">
+            <descr type=".\IfDescField"/>
+            <identifier type="TextField"/>
+            <!-- backref from if field, read-only data -->
+            <icon type="TextField" volatile="true"/>
+            <optgroup type="TextField" volatile="true"/>
+            <if type=".\DeviceField">
+                <Required>Y</Required>
+                <Constraints>
+                    <check001>
+                        <ValidationMessage>Can not assign a device to more interfaces.</ValidationMessage>
+                        <type>UniqueConstraint</type>
+                    </check001>
+                </Constraints>
+            </if>
+            <lock type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </lock>
+        </interface>
+    </items>
+</model>

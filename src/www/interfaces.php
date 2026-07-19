@@ -434,7 +434,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $if = $_GET['if'];
     } else {
         // no interface provided, redirect to interface assignments
-        header(url_safe('Location: /interfaces_assign.php'));
+        header(url_safe('Location: /ui/interfaces/assignment'));
         exit;
     }
 
@@ -759,6 +759,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 do_input_validation($pconfig, $reqdfields, $reqdfieldsn, $input_errors);
                 break;
             case "dhcp":
+                if ((!empty($pconfig['adv_dhcp_config_advanced']) || !empty($pconfig['adv_dhcp_config_file_override'])) && !userIsAdmin($_SESSION['Username'])) {
+                    $input_errors[] = gettext('Advanced options may only be edited by system administrators due to the increased possibility of privilege escalation.');
+                }
                 if (!empty($pconfig['adv_dhcp_config_file_override'] && !file_exists($pconfig['adv_dhcp_config_file_override_path']))) {
                     $input_errors[] = sprintf(gettext('The DHCP override file "%s" does not exist.'), $pconfig['adv_dhcp_config_file_override_path']);
                 }
@@ -772,7 +775,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 do_input_validation($pconfig, $reqdfields, $reqdfieldsn, $input_errors);
                 break;
             case 'dhcp6':
-                if (!empty($pconfig['adv_dhcp6_config_file_override'] && !file_exists($pconfig['adv_dhcp6_config_file_override_path']))) {
+                if ((!empty($pconfig['adv_dhcp6_config_advanced']) || !empty($pconfig['adv_dhcp6_config_file_override'])) && !userIsAdmin($_SESSION['Username'])) {
+                    $input_errors[] = gettext('Advanced options may only be edited by system administrators due to the increased possibility of privilege escalation.');
+                }
+                if (!empty($pconfig['adv_dhcp6_config_file_override']) && !file_exists($pconfig['adv_dhcp6_config_file_override_path'])) {
                     $input_errors[] = sprintf(gettext('The DHCPv6 override file "%s" does not exist.'), $pconfig['adv_dhcp6_config_file_override_path']);
                 }
                 if (isset($pconfig['dhcp6-prefix-id--hex']) && $pconfig['dhcp6-prefix-id--hex'] != '') {
@@ -1802,9 +1808,7 @@ include("head.inc");
                               <?= gettext('When used on a single VLAN interface the setting "Promiscuous mode" is required for this to work. ' .
                                   'Alternatively, the parent interface MAC can be spoofed applying the MAC address to all attached VLAN children automatically.') ?><br />
 <?php
-                              $ip = getenv('REMOTE_ADDR');
-                              $mac = `/usr/sbin/arp -an | grep {$ip} | cut -d" " -f4`;
-                              $mac = str_replace("\n","",$mac);
+                              $mac = shell_safe('/usr/sbin/arp -an | grep %s | cut -d" " -f4', getenv('REMOTE_ADDR'));
                               if (!empty($mac)):
 ?>
                               <a onclick="document.getElementById('spoofmac').value='<?= html_safe($mac) ?>';" href="#"><?=gettext("Insert my currently connected MAC address (use with care)"); ?></a><br />

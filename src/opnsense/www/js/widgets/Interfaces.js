@@ -27,6 +27,8 @@
 export default class Interfaces extends BaseTableWidget {
     constructor() {
         super();
+
+        this.width = null;
     }
 
     getGridOptions() {
@@ -39,7 +41,8 @@ export default class Interfaces extends BaseTableWidget {
     getMarkup() {
         let $container = $('<div></div>');
         let $if_table = this.createTable('if-table', {
-            headerPosition: 'none'
+            headerPosition: 'none',
+            headerBreakpoint: 0
         });
 
         $container.append($if_table);
@@ -102,12 +105,14 @@ export default class Interfaces extends BaseTableWidget {
     }
 
     onWidgetResize(elem, width, height) {
-        if (width > 450) {
-            $('.interface-info-detail').parent().show();
-        } else {
-            $('.interface-info-detail').parent().hide();
-        }
+        const crossedBreakpoint = (this.width <= 450) !== (width <= 450);
 
-        return super.onWidgetResize(elem, width, height);
+        if (!crossedBreakpoint) return false;
+
+        $('.interface-info-detail').parent().toggle(width > 450);
+        super.refreshStyles('if-table');
+        this.width = width;
+
+        return true;
     }
 }

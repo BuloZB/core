@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright (C) 2015 Deciso B.V.
+ * Copyright (C) 2015-2026 Deciso B.V.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -162,7 +162,17 @@ class ControllerBase extends ControllerRoot
      */
     private function parseFormNode($xmlNode)
     {
-        $result = [];
+        /* set defaults, always a root section (also used for advanced toggle) */
+        $result = [
+            'sections' => [
+                [
+                    'children' => [],
+                    'type' => false
+                ]
+            ],
+            'advanced' => false,
+            'help' => false
+        ];
         foreach ($xmlNode as $key => $node) {
             switch ($key) {
                 case "tab":
@@ -170,25 +180,43 @@ class ControllerBase extends ControllerRoot
                         $result['tabs'] = [];
                     }
                     $tab = [];
-                    $tab[] = (string)$node->attributes()->id;
-                    $tab[] = gettext((string)$node->attributes()->description);
+                    $tab['tab_id'] = (string)$node->attributes()->id;
+                    $tab['tab_descr'] = gettext((string)$node->attributes()->description);
                     if (isset($node->subtab)) {
-                        $tab["subtabs"] = $this->parseFormNode($node);
+                        $tab["subtabs"] = [];
+                        foreach ($node->subtab as $subnode) {
+                            $subtab = $this->parseFormNode($subnode);
+                            $subtab['tab_id'] = $subnode->attributes()->id;
+                            $subtab['tab_descr'] = gettext((string)$subnode->attributes()->description);
+                            $tab["subtabs"][] = $subtab;
+                        }
                     } else {
-                        $tab[] = $this->parseFormNode($node);
+                        $tab = array_merge($tab, $this->parseFormNode($node));
                     }
                     $result['tabs'][] = $tab;
                     break;
                 case "subtab":
-                    $subtab = [];
-                    $subtab[] = $node->attributes()->id;
-                    $subtab[] = gettext((string)$node->attributes()->description);
-                    $subtab[] = $this->parseFormNode($node);
-                    $result[] = $subtab;
                     break;
                 case "field":
                     // field type, containing attributes
-                    $result[] = $this->parseFormNode($node);
+                    $field = $this->parseFormNode($node);
+                    foreach (
+                        [
+                        'advanced', 'help', 'hint', 'style', 'maxheight', 'width', 'allownew', 'readonly', 'type'
+                        ] as $f
+                    ) {
+                        if (!isset($field[$f])) {
+                            $field[$f] = false;
+                        } elseif (!empty($field[$f]) && in_array($f, ['advanced', 'help'])) {
+                            $result[$f] = true; /* top level booleans */
+                        }
+                    }
+                    if ($field['type'] == 'header') {
+                        $field['children'] = [];
+                        $result['sections'][] = $field;
+                    } else {
+                        $result['sections'][count($result['sections']) - 1]['children'][] = $field;
+                    }
                     break;
                 case "help":
                 case "hint":
@@ -197,6 +225,9 @@ class ControllerBase extends ControllerRoot
                     if (strlen($text)) {
                         $result[$key] = gettext($text);
                     }
+                    break;
+                case "grid_view":
+                    // skip grid properties
                     break;
                 default:
                     // default behavior, copy in value as key/value data
@@ -261,7 +292,10 @@ class ControllerBase extends ControllerRoot
                 foreach ($rootnode as $key => $item) {
                     switch ($key) {
                         case 'label':
-                            $record['label'] = gettext((string)$item);
+                            $text = (string)$item;
+                            if (strlen($text)) {
+                                $record['label'] = gettext($text);
+                            }
                             break;
                         case 'id':
                             $parts = explode('.', (string)$item);

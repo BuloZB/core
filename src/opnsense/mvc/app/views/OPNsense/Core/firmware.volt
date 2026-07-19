@@ -46,7 +46,7 @@
                 return $(this).text();
             }).get();
             let name = row_by_col.join(',').toLowerCase();
-            if (entries == 'plugin_entry' && !$(this).hasClass('filter_sup_inst') && !$("#plugin_show_community").is(':checked')) {
+            if (entries == 'plugin_entry' && !$(this).hasClass('filter_sup_inst') && $.plugins_keep_full == undefined) {
                 $(this).hide();
             } else if (search.length != 0 && name.indexOf(search) == -1) {
                 $(this).hide();
@@ -85,7 +85,7 @@
                     row['reason']+'</td><td>'+row['repository'] + '</td></tr>');
 
                     if (row['name'] == data['product_target'] && row['new'] != 'N/A') {
-                        show_log = row['new'].replace(/[_-].*/, '');
+                        show_log = row['new'].replace(/[p_-].*/, '');
                     }
                 });
                 $('#update_status_container').hide();
@@ -412,7 +412,7 @@
 
             if (local_count == 0) {
                 $('#packageslist > tbody').append(
-                    '<tr><td colspan=6>{{ lang._('No packages were found on your system. Please call for help.') }}</td></tr>'
+                    '<tr><td colspan=7>{{ lang._('No packages were found on your system. Please call for help.') }}</td></tr>'
                 );
             }
 
@@ -473,8 +473,19 @@
 
             if (plugin_count == 0) {
                 $('#pluginlist > tbody').append(
-                    '<tr><td colspan=5>{{ lang._('Check for updates to view available plugins.') }}</td></tr>'
+                    '<tr><td colspan=7>{{ lang._('Check for updates to view available plugins.') }}</td></tr>'
                 );
+            } else if ($.plugins_keep_full == undefined) {
+                $('#pluginlist > tbody').append(
+                    '<tr class="plugins-full filter_sup_inst"><td colspan=7><a id="plugins-act" href="#">{{ lang._('Click to view the community plugins.') }}</a></td></tr>'
+                );
+                $("#plugins-act").click(function(event) {
+                    event.preventDefault();
+                    $(".plugins-hidden").attr('style', '');
+                    $(".plugins-full").attr('style', 'display: none;');
+                    $.plugins_keep_full = 1;
+                    $("#plugin_search").keyup();
+                });
             }
 
             if (data['product']['product_log']) {
@@ -496,13 +507,12 @@
             } else {
                 $('#plugin_actions').hide();
             }
-            $("#plugin_show_community").change();
 
             $("#changeloglist > tbody").empty();
             $("#changeloglist > thead").html("<tr><th>{{ lang._('Version') }}</th>" +
             "<th>{{ lang._('Date') }}</th><th></th></tr>");
 
-            const installed_version = data['product_version'].replace(/[_-].*/, '');
+            const installed_version = data['product_version'].replace(/[p_-].*/, '');
 
             $.each(data['changelog'], function(index, row) {
                 changelog_count += 1;
@@ -534,7 +544,7 @@
 
             if (changelog_count > changelog_max) {
                 $('#changeloglist > tbody').append(
-                    '<tr class= "changelog-full"><td colspan=3><a id="changelog-act" href="#">{{ lang._('Click to view full changelog history.') }}</a></td></tr>'
+                    '<tr class="changelog-full"><td colspan=3><a id="changelog-act" href="#">{{ lang._('Click to view full changelog history.') }}</a></td></tr>'
                 );
                 $("#changelog-act").click(function(event) {
                     event.preventDefault();
@@ -652,7 +662,6 @@
 
         $("#plugin_search").keyup(function () { generic_search(this, 'plugin_entry'); });
         $("#package_search").keyup(function () { generic_search(this, 'package_entry'); });
-        $("#plugin_show_community").change(function(){ $("#plugin_search").keyup();})
 
         ajaxGet('/api/core/firmware/running', {}, function(data, status) {
             if (data['status'] == 'busy') {
@@ -695,14 +704,12 @@
                                 .prop('selected', selected)
                         );
                     });
-                    if (fwopts['mirrors_allow_custom']) {
-                        $("#firmware_mirror :first-child").after($("<option/>")
-                            .attr("value", fwconf['mirror'])
-                            .text("(custom)")
-                            .data("custom", 1)
-                            .prop('selected', custom_selected)
-                        );
-                    }
+                    $("#firmware_mirror :first-child").after($("<option/>")
+                        .attr("value", fwconf['mirror'])
+                        .text("(custom)")
+                        .data("custom", 1)
+                        .prop('selected', custom_selected)
+                    );
 
                     $("#firmware_subscription").val(fwconf['subscription']);
 
@@ -722,14 +729,13 @@
                                 .prop('selected', selected)
                         );
                     });
-                    if (fwopts['flavours_allow_custom']) {
-                        $("#firmware_flavour :first-child").after($("<option/>")
-                            .attr("value", fwconf['flavour'])
-                            .text("(custom)")
-                            .data("custom", 1)
-                            .prop('selected', custom_selected)
-                        );
-                    }
+                    $("#firmware_flavour :first-child").after($("<option/>")
+                        .attr("value", fwconf['flavour'])
+                        .text("(custom)")
+                        .data("custom", 1)
+                        .prop('selected', custom_selected)
+                    );
+
                     $("#firmware_flavour").selectpicker('refresh');
                     $("#firmware_flavour").change();
                     if (fwconf['flavour'] !== '' || fwconf['reboot'] === '1' || fwconf['aux'] === '1') {
@@ -959,14 +965,7 @@
                                 <th style="vertical-align:middle">{{ lang._('Size') }}</th>
                                 <th style="vertical-align:middle">{{ lang._('Tier') }}</th>
                                 <th style="vertical-align:middle">{{ lang._('Repository') }}</th>
-                                <th style="vertical-align:middle">
-                                        {{ lang._('Comment') }}
-                                        <span class="checkbox pull-right" style="margin:auto">
-                                            <label>
-                                                <input type="checkbox" id="plugin_show_community">{{ lang._('Show community plugins') }}
-                                            </label>
-                                        </span>
-                                </th>
+                                <th style="vertical-align:middle">{{ lang._('Comment') }}</th>
                                 <th style="vertical-align:middle"></th>
                             </tr>
                         </thead>

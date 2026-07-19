@@ -104,18 +104,8 @@ class FilterController extends FilterBaseController
         }
         /* extract all mvc records so we can filter and sort all at once */
         $allrules = [];
-        foreach ($this->getModel()->rules->rule->iterateItems() as $uuid => $record) {
-            $row = ['uuid' => $record->getAttributes()['uuid']];
-            $reflen = strlen($record->__reference) + 1;
-            foreach ($record->getFlatNodes() as $key => $val) {
-                $fieldname = substr($key, $reflen);
-                $descr = $val->getDescription();
-                $row[$fieldname] = $val->getValue();
-                if ($row[$fieldname] != $descr) {
-                    $row['%' . $fieldname] = $descr;
-                }
-            }
-            $allrules[] = $row;
+        foreach ($this->getModel()->rules->rule->iterateItems() as $key => $node) {
+            $allrules[] = array_merge(['uuid' => $key], $node->getNodeContent());
         }
 
         if ($show_all) {
@@ -131,19 +121,30 @@ class FilterController extends FilterBaseController
             $is_cat = empty($categories) || array_intersect($r_categories, $categories);
             $rule_interfaces = array_filter(explode(',', $record['interface'] ?? ''));
             if ($interfaces === null || (empty($record['interface']))) {
-                /* ALL interfaces always matches, when inspecting, also show rules that apply to all */
-                $is_if = true; // ALL interfaces or floating always matches
+                /*
+                 * All rules view uses a "null" interface filter.
+                 * Rules without an assigned interface are floating/global and match everywhere.
+                 */
+                $is_if = true;
             } elseif (!empty($record['interfacenot'])) {
-                /* Inverted interface, show where applicable when inspecting */
-                $is_if = !array_intersect($rule_interfaces, $interfaces ?? []);
-            } elseif (empty($interfaces) && (count($rule_interfaces) != 1 || !empty($record['interfacenot']))) {
-                /* Floating, multiple interfaces selected */
+                /*
+                 * Inverted interface rule: selected interfaces are exclusions,
+                 * so show it only when none overlap with the active interface filter.
+                 * These also count as floating rules.
+                 */
+                $is_if = empty(array_intersect($rule_interfaces, $interfaces ?? []));
+            } elseif (empty($interfaces) && count($rule_interfaces) != 1) {
+                /*
+                 * Floating rules view: uses an "empty" interface filter.
+                 * Any rule not bound to exactly one interface counts as floating.
+                 */
                 $is_if = true;
             } else {
-                /* Interfaces overlap, when inspecting all overlaps are relevant, otherwise only exact matches */
-                $is_if = array_intersect($rule_interfaces, $interfaces ?? []) && (
-                    count($rule_interfaces) == 1
-                ) && empty($record['interfacenot']);
+                /*
+                 * Interface/Group rules view: show rules matching at least one selected interface or group.
+                 * This includes normal single interface/group and floating multi interface/group rules.
+                 */
+                $is_if = !empty(array_intersect($rule_interfaces, $interfaces ?? []));
             }
 
             if (!$is_cat || !$is_if) {
@@ -228,18 +229,10 @@ class FilterController extends FilterBaseController
 
     public function getRuleAction($uuid = null)
     {
-        $result = $this->getBase('rule', 'rules.rule', $uuid);
-
-        if ($this->request->get('fetchmode') === 'copy' && !empty($result['rule'])) {
-            /* copy mode, generate new sequence at the end */
-            $max = 0;
-            foreach ($this->getModel()->rules->rule->iterateItems() as $rule) {
-                $max = max($rule->sequence->asInt(), $max);
-            }
-            $result['rule']['sequence'] = $max + 100;
-        }
-
-        return $result;
+        return $this->setCopySequence(
+            $this->getBase('rule', 'rules.rule', $uuid),
+            $this->getModel()->rules->rule
+        );
     }
 
     public function delRuleAction($uuid)
@@ -402,7 +395,7 @@ class FilterController extends FilterBaseController
         $result['any']['items'][] = $makeItem('__any', gettext('All rules'), 'any');
 
         foreach ($result as &$section) {
-            usort($section['items'], fn($a, $b) => strcasecmp($a['label'], $b['label']));
+            usort($section['items'], fn($a, $b) => strnatcasecmp($a['label'], $b['label']));
         }
 
         return $result;

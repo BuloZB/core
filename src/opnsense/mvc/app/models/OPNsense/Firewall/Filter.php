@@ -149,6 +149,12 @@ class Filter extends BaseModel
                     /* rule type specific rules (filter, snat) */
                     if ($rule->target !== null) {
                         // Additional source nat validations
+                        if ($rule->target->getValue() === 'any') {
+                            $messages->appendMessage(new Message(
+                                gettext("Target address cannot be any."),
+                                $rule->target->__reference
+                            ));
+                        }
                         $target_is_addr = Util::isSubnet($rule->target) || Util::isIpAddress($rule->target);
                         $target_proto = strpos($rule->target, ':') === false ? "inet" : "inet6";
                         if ($target_is_addr && $target_proto != $rule->ipprotocol) {
@@ -286,14 +292,22 @@ class Filter extends BaseModel
                             gettext('A track interface is only allowed without an external prefix.'),
                             $rule->trackif->__reference
                         ));
+                    } elseif ($config->interfaces->{$rule->interface}->ipaddrv6 != 'dhcp6') {
+                        $messages->appendMessage(new Message(
+                            gettext('The rule interface is not in set to DHCPv6 mode.'),
+                            $rule->trackif->__reference
+                        ));
+                    } elseif ($rule->trackif->isEqual($rule->interface) && !strlen($config->interfaces->{$rule->interface}->{'dhcp6-prefix-id'})) {
+                        $messages->appendMessage(new Message(
+                            gettext('The rule interface requires a prefix ID for association.'),
+                            $rule->trackif->__reference
+                        ));
                     } elseif (
-                        (empty($config->interfaces->{$rule->interface}->ipaddrv6) ||
-                        $config->interfaces->{$rule->interface}->ipaddrv6 != 'dhcp6') ||
-                        empty($config->interfaces->{$rule->trackif}->{'track6-interface'}) ||
-                        $config->interfaces->{$rule->trackif}->{'track6-interface'} != (string)$rule->interface
+                        !$rule->trackif->isEqual($rule->interface) && (empty($config->interfaces->{$rule->trackif}->{'track6-interface'}) ||
+                        $config->interfaces->{$rule->trackif}->{'track6-interface'} != (string)$rule->interface)
                     ) {
                         $messages->appendMessage(new Message(
-                            gettext('This interface is not tracking the current rule interface.'),
+                            gettext('This interface is not associated with the current rule interface.'),
                             $rule->trackif->__reference
                         ));
                     }
@@ -353,31 +367,6 @@ class Filter extends BaseModel
         return $messages;
     }
 
-    /**
-     * Rollback this model to a previous version.
-     * Make sure to remove this object afterwards, since its contents won't be updated.
-     * @param $revision float|string revision number
-     * @return bool action performed (backup revision existed)
-     */
-    public function rollback($revision)
-    {
-        $filename = Config::getInstance()->getBackupFilename($revision);
-        if ($filename) {
-            // fiddle with the dom, copy OPNsense->Firewall->Filter from backup to current config
-            $sourcexml = simplexml_load_file($filename);
-            if ($sourcexml->OPNsense->Firewall->Filter) {
-                $sourcedom = dom_import_simplexml($sourcexml->OPNsense->Firewall->Filter);
-                $targetxml = Config::getInstance()->object();
-                $targetdom = dom_import_simplexml($targetxml->OPNsense->Firewall->Filter);
-                $node = $targetdom->ownerDocument->importNode($sourcedom, true);
-                $targetdom->parentNode->replaceChild($node, $targetdom);
-                Config::getInstance()->save();
-                return true;
-            }
-        }
-        return false;
-    }
-
     public function hasSchedule()
     {
         foreach ($this->rules->rule->iterateItems() as $rule) {
@@ -394,5 +383,19 @@ class Filter extends BaseModel
             }
         }
         return false;
+    }
+
+    /**
+     * Persist volatile SNAT model fields into legacy configuration nodes.
+     */
+    public function serializeToConfig($validateFullModel = false, $disable_validation = false)
+    {
+        $result = parent::serializeToConfig($validateFullModel, $disable_validation);
+        $mode = $this->general->snat_mode->getValue();
+        if ((string)Config::getInstance()->object()->nat->outbound->mode !== $mode) {
+            /* SimpleXML will create the node when not there */
+            Config::getInstance()->object()->nat->outbound->mode = $mode;
+        }
+        return $result;
     }
 }

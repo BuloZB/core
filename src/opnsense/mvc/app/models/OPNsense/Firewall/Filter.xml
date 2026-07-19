@@ -1,9 +1,21 @@
 <model>
     <mount>//OPNsense/Firewall/Filter</mount>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
     <migration_prefix>MFP</migration_prefix>
     <description>Firewall rules (new)</description>
     <items>
+        <general>
+            <snat_mode type=".\SNatModeField" volatile="true">
+                <Required>Y</Required>
+                <Default>automatic</Default>
+                <OptionValues>
+                    <automatic>Automatic Source NAT rule generation</automatic>
+                    <hybrid>Hybrid Source NAT rule generation</hybrid>
+                    <advanced>Manual Source NAT rule generation</advanced>
+                    <disabled>Disable Source NAT rule generation</disabled>
+                </OptionValues>
+            </snat_mode>
+        </general>
         <rules>
             <rule type=".\FilterRuleField">
                 <enabled type="BooleanField">
@@ -309,10 +321,10 @@
                         <opt7 value="7">Network Control (7, highest)</opt7>
                     </OptionValues>
                 </set-prio-low>
-                <tag type="TextField">
+                <tag type="StrictTextField">
                     <Mask>/^([0-9a-zA-Z.,_\-]){0,512}$/u</Mask>
                 </tag>
-                <tagged type="TextField">
+                <tagged type="StrictTextField">
                     <Mask>/^([0-9a-zA-Z.,_\-]){0,512}$/u</Mask>
                 </tagged>
                 <tcpflags1 type="OptionField">
@@ -410,6 +422,10 @@
                     <Default>0</Default>
                     <Required>Y</Required>
                 </nonat>
+                <nosync type="BooleanField">
+                    <Default>0</Default>
+                    <Required>Y</Required>
+                </nosync>
                 <sequence type=".\FilterSequenceField">
                     <MinimumValue>1</MinimumValue>
                     <MaximumValue>999999</MaximumValue>
@@ -470,10 +486,7 @@
                     <EnableAlias>Y</EnableAlias>
                     <ValidationMessage>Please specify a valid portnumber, name, alias or range.</ValidationMessage>
                 </destination_port>
-                <target type="NetworkAliasField">
-                    <Default>wanip</Default>
-                    <Required>Y</Required>
-                </target>
+                <target type="NetworkAliasField"/>
                 <target_port type="PortField">
                     <EnableWellKnown>Y</EnableWellKnown>
                     <EnableRanges>Y</EnableRanges>
@@ -494,7 +507,10 @@
                     <Multiple>Y</Multiple>
                     <ValidationMessage>Related category not found.</ValidationMessage>
                 </categories>
-                <tagged type="TextField">
+                <tag type="StrictTextField">
+                    <Mask>/^([0-9a-zA-Z.,_\-]){0,512}$/u</Mask>
+                </tag>
+                <tagged type="StrictTextField">
                     <Mask>/^([0-9a-zA-Z.,_\-]){0,512}$/u</Mask>
                 </tagged>
                 <description type="DescriptionField"/>

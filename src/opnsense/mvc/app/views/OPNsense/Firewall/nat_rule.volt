@@ -32,6 +32,36 @@
         // XXX: Category keys differ in the individual models
         const category_key = '{{ categoryKey }}';
 
+        function setupSnatModeForm() {
+            if (entrypoint !== 'source_nat') {
+                updateSnatModeUI();
+                return;
+            }
+            mapDataToFormUI({
+                'frm_dialogSNatMode': "/api/firewall/source_nat/get"
+            }).done(function() {
+                $('.selectpicker').selectpicker('refresh');
+                updateSnatModeUI();
+                $('#filter\\.general\\.snat_mode').change(function () {
+                    $(document).trigger("settings-changed");
+                });
+            });
+        }
+
+        function updateSnatModeUI() {
+            if (entrypoint !== 'source_nat') {
+                $('#rule_grid_container').removeClass('snat-mode-hidden snat-mode-readonly');
+                return;
+            }
+
+            const snatMode = $('#filter\\.general\\.snat_mode').val();
+            const isDisabled = snatMode === 'disabled';
+            const isReadonly = snatMode === 'automatic';
+
+            $('#rule_grid_container').toggleClass('snat-mode-hidden', isDisabled);
+            $('#rule_grid_container').toggleClass('snat-mode-readonly', isReadonly);
+        }
+
         function showDialogAlert(type, title, message) {
             BootstrapDialog.show({
                 type: type,
@@ -50,105 +80,122 @@
         let treeViewEnabled = localStorage.getItem(storageKey) === "1";
         $('#toggle_tree_button').toggleClass('active btn-primary', treeViewEnabled);
 
-        const ruleTypeMap = {
-            '100000': { label: "{{ lang._('Automatically generated rules') }}", icon: "fa-magic", tooltip: "{{ lang._('Automatically generated rules') }}", color: "text-secondary" },
-            '400000': { label: "{{ lang._('Interface rules') }}", icon: "fa-ethernet", tooltip: "{{ lang._('Interface rule') }}", color: "text-info" },
-            '500000': { label: "{{ lang._('Automatically generated rules') }}", icon: "fa-magic", tooltip: "{{ lang._('Automatically generated rules') }}", color: "text-secondary" },
-        };
+        const ruleTypeMap = [
+            { idx: 100000, uuid: "auto0", label: "{{ lang._('Automatically generated rules') }}", icon: "fa-magic", tooltip: "{{ lang._('Automatically generated rules') }}", color: "text-secondary" },
+            { idx: 400000, uuid: "interface", label: "{{ lang._('Interface rules') }}", icon: "fa-ethernet", tooltip: "{{ lang._('Interface rule') }}", color: "text-info" },
+            { idx: 500000, uuid: "auto1", label: "{{ lang._('Automatically generated rules') }}", icon: "fa-magic", tooltip: "{{ lang._('Automatically generated rules') }}", color: "text-secondary" },
+        ];
 
         const getRuleType = function(row) {
-            return ruleTypeMap[row.prio_group] || null;
+            return buckets.find(r => r.idx === Number(row.prio_group)) || null;
         };
 
-        // Lives outside the grid, so the logic of the response handler can be changed after grid initialization
-        function dynamicResponseHandler(response) {
-            const getCategoryLabel = function(row) {
-                return row["%categories"] || row.categories || "";
+        let buckets = [];
+        function createBucket(props) {
+            return {
+                isGroup: true,
+                children: [],
+                ...props
             };
+        }
 
-            const makeBucket = function(label, uuid, categoryColors) {
-                return {
-                    // ensure uuid is as unique as possible for persistence handling
-                    uuid           : uuid,
-                    isGroup        : true,
-                    _label         : label,          // internal
-                    categories     : label,
-                    /*
-                    * Bucket rows reuse the category formatter.
-                    * For category buckets, this copies the first child's category metadata
-                    * so the bucket can render the same category icon/color as its rules.
-                    * For rule type buckets, a synthetic categoryColors entry is supplied.
-                    */
-                    category_colors: categoryColors,
-                    children       : []
-                };
-            };
+        function responseHandler(response) {
+            // recursively clear children but keep buckets intact
+            const clear = (buckets) => {
+                for (const bucket of buckets) {
+                    if (Array.isArray(bucket.children)) {
+                        clear(bucket.children);
+                        bucket.children = [];
+                    }
+                }
+            }
 
-            const createBucket = function(parent, label, uuid, categoryColors) {
-                let bucket = parent.children.find(child => child.isGroup && child._label === label);
+            clear(buckets);
+
+            // (re)initialize missing buckets
+            for (const type of ruleTypeMap) {
+                let bucket = buckets.some(bucket => bucket.idx === type.idx);
 
                 if (!bucket) {
-                    bucket = makeBucket(label, uuid, categoryColors);
-                    parent.children.push(bucket);
+                    buckets.push(createBucket({
+                        ...type,
+                        _persistence: false,
+                        _expanded: false,
+                        categories: type.label,
+                        category_colors: [{ name: type.label }],
+                    }));
+                    buckets = buckets.sort((a, b) => a.idx - b.idx);
                 }
+            }
 
-                return bucket;
-            };
+            // determine tree expansion state of top-level buckets
+            for (const bucket of buckets) {
+                if (["auto0", "auto1"].includes(bucket.uuid)) {
+                    bucket._expanded = false;
+                } else if (bucket.uuid === "interface") {
+                    bucket._expanded = true;
+                }
+            }
 
-            const root = { children: [] };
-
+            const indexMap = {};
+            let lastBucketId = null;
             response.rows.forEach(row => {
-                const ruleType = getRuleType(row);
-                const ruleTypeKey = row.prio_group || "other";
-                const ruleTypeLabel = ruleType?.label || "{{ lang._('Other rules') }}";
-                const categoryLabel = getCategoryLabel(row);
+                // Find bucket this row belongs to. If it doesn't exist, create it.
+                let bucket = getRuleType(row);
 
-                /*
-                * The first tree level is the default view, and always based on the rule priority/type.
-                *
-                * Automatic rules
-                *   rule
-                * Interface rules
-                *   rule
-                */
-                const ruleTypeBucket = createBucket(
-                    root,
-                    ruleTypeLabel,
-                    `ruletype${ruleTypeKey}`,
-                    [{ name: ruleTypeLabel }]
-                );
-
+                const categoryLabel = row["%categories"] || row.categories || "";
                 if (treeViewEnabled && row.is_automatic !== true && categoryLabel !== "") {
-                    /*
-                    * When tree view is enabled, categorized non-automatic rules are grouped
-                    * one level deeper by category below their rule priority/type bucket.
-                    *
-                    * Automatic rules and uncategorized rules stay directly below their rule
-                    * priority/type bucket to avoid redundant or low-value nesting.
-                    *
-                    * Automatic rules
-                    *   rule
-                    * Interface rules
-                    *   rule
-                    *   Web (Category)
-                    *     rule
-                    *   Mail (Category)
-                    *     rule
-                    */
-                    const categoryBucket = createBucket(
-                        ruleTypeBucket,
-                        categoryLabel,
-                        `ruletype${ruleTypeKey}category${String(categoryLabel).replace(/[^a-z0-9]/gi, '')}`,
-                        row.category_colors || []
-                    );
+                    // We're dealing with a category, create bucket id based on this row
+                    const bucketId = `${bucket.uuid}category${String(categoryLabel).replace(/[^a-z0-9]/gi, '')}`;
 
-                    categoryBucket.children.push(row);
-                } else {
-                    ruleTypeBucket.children.push(row);
+                    // categories with the same name may appear multiple times due to ordering,
+                    // indexMap tracks these to uniquely identify them.
+                    if (!(bucketId in indexMap)) {
+                        indexMap[bucketId] = 0;
+                    }
+
+                    if (bucketId !== lastBucketId && lastBucketId !== null) {
+                        // moved to next category
+                        indexMap[lastBucketId]++;
+                    }
+
+                    const id = `${bucketId}${indexMap[bucketId]}`;
+                    let newBucket = bucket.children.find(child => child.uuid === id);
+
+                    if (!newBucket) {
+                        newBucket = createBucket({
+                            uuid: id,
+                            _persistence: true,
+                            categories: categoryLabel,
+                            category_colors: row.category_colors,
+                        });
+                        bucket.children.push(newBucket);
+                    }
+
+                    bucket = newBucket;
+                    lastBucketId = bucketId;
                 }
+
+                bucket.children.push(row);
             });
 
-            return Object.assign({}, response, { rows: root.children });
+            const removeEmptyGroups = (items) => {
+                for (let i = items.length - 1; i >= 0; i--) {
+                    const item = items[i];
+
+                    if (Array.isArray(item.children)) {
+                        if (item.children.length === 0) {
+                            items.splice(i, 1);
+                        } else {
+                            removeEmptyGroups(item.children);
+                        }
+                    }
+                }
+            };
+
+            removeEmptyGroups(buckets);
+
+            return Object.assign({}, response, { rows: buckets });
         }
 
         const grid = $("#{{ formGridRule['table_id'] }}").UIBootgrid({
@@ -162,6 +209,7 @@
                 dataTree              : true,
                 dataTreeChildField    : "children",
                 dataTreeElementColumn : category_key,
+                dataTreeStartExpanded : (row, level) => row.getData()._expanded,
                 rowFormatter: function(row) {
                     const data = row.getData();
                     const $element = $(row.getElement());
@@ -189,8 +237,10 @@
                 }
             },
             options: {
+                virtualDOM: true,
                 responsive: true,
                 sorting: false,
+                rowCount: [500,20,50,100,200,1000,2000,-1],
                 initialSearchPhrase: getUrlHash('search'),
                 requestHandler: function(request){
                     if ( $('#category_filter').val().length > 0) {
@@ -198,7 +248,7 @@
                     }
                     return request;
                 },
-                responseHandler: dynamicResponseHandler,
+                responseHandler: responseHandler,
                 headerFormatters: {
                     // XXX: This cannot be (easily) dynamically decided, so some keys are duplicate for simplicity
                     enabled: function (column) {
@@ -322,7 +372,7 @@
                             * whose name matches ruleTypeMap, while real category buckets continue
                             * to render normal category tag icons.
                             */
-                            const ruleType = Object.values(ruleTypeMap).find(type => type.label === cat.name);
+                            const ruleType = ruleTypeMap.find(type => type.label === cat.name);
 
                             if (isGroup && ruleType) {
                                 return `
@@ -334,7 +384,7 @@
                             const bgColor = cat.color ? ` style="color:${cat.color};"` : '';
 
                             return `
-                                <span class="category-icon" data-toggle="tooltip" title="${cat.name}">
+                                <span class="category-icon" data-toggle="tooltip" title="${htmlSafe(cat.name)}">
                                     <i class="fa fa-fw fa-tag"${bgColor}></i>
                                 </span>`;
                         }).join(' ');
@@ -376,15 +426,19 @@
                         if (row.isGroup) {
                             return "";
                         }
+
                         const value = row[column.id] || "";
                         // DNAT uses network, SNAT and ONAT uses net
                         const isNegated = (row[column.id.replace(/network|net/, 'not')] == 1) ? "! " : "";
 
                         if (typeof value !== 'string') {
                             return '';
-                        }
-
-                        if (!value || value === "any") {
+                        } else if (column.id === "local-port") {
+                            // DNAT: mirror destination port into local-port for better visibility
+                            return (!row["local-port"] ? row["destination.port"] : row["local-port"]) || "*";
+                        } else if (entrypoint === 'source_nat' && column.id === "target" && value === "") {
+                            return "{{ lang._('Interface address') }}";
+                        } else if (!value || value === "any") {
                             return isNegated + '*';
                         }
 
@@ -394,7 +448,7 @@
                             if (aliasInfo.isAlias) {
                                 const tooltipHtml = aliasInfo.summary || aliasInfo.description || aliasInfo.value || "";
                                 return `
-                                    <span data-toggle="tooltip" data-html="true" title="${tooltipHtml}">${aliasInfo.value}&nbsp;</span>
+                                    <span data-toggle="tooltip" data-html="true" title="${htmlSafe(tooltipHtml)}">${aliasInfo.value}&nbsp;</span>
                                     <a href="/ui/firewall/alias/index/${encodeURIComponent(aliasInfo.value)}"
                                     data-toggle="tooltip" title="{{ lang._('Edit alias') }}">
                                     <i class="fa fa-fw fa-list"></i>
@@ -513,6 +567,68 @@
             },
         });
 
+        function onTreeEvent(row, open) {
+            const getBucketById = (buckets, uuid) => {
+                for (const bucket of buckets) {
+                    if (bucket.uuid === uuid) {
+                        return bucket;
+                    }
+
+                    if (Array.isArray(bucket.children)) {
+                        const found = getBucketById(bucket.children, uuid);
+
+                        if (found) {
+                            return found;
+                        }
+                    }
+                }
+
+                return null;
+            }
+
+            const bucket = getBucketById(buckets, row.getData().uuid);
+            if ('_expanded' in bucket) {
+                bucket._expanded = open;
+            }
+        }
+
+        // persist expansion state of rule type categories
+        // during the lifetime of the page, resets on page reload
+        const table = grid.bootgrid('getTable');
+        table.on('dataTreeRowExpanded', (row) => onTreeEvent(row, true));
+        table.on('dataTreeRowCollapsed', (row) => onTreeEvent(row, false));
+
+        // "selectableRowsCheck" doesn't execute when the header checkbox is used,
+        // work around this by checking on row selection
+        table.on('rowSelected', (row) => {
+            const data = row.getData();
+            if (data.isGroup) {
+                // "select all" triggered, deselect current row since it's a group, but select any nested row that isn't a group recursively
+                row.deselect();
+                const children = row.getTreeChildren();
+                const getAllRows = (rows) => {
+                    const result = [];
+
+                    for (const row of rows) {
+                        const rowData = row.getData();
+                        // do not select rows that aren't visible to avoid confusion (_expanded == false)
+                        if (!rowData.isGroup && rowData.uuid.includes("-") && row.getTreeParent().getData()._expanded) {
+                            result.push(row);
+                            continue;
+                        }
+
+                        result.push(...getAllRows(row.getTreeChildren() || []));
+                    }
+
+                    return result;
+                };
+
+                for (const selectableRow of getAllRows(children)) {
+                    selectableRow.select();
+                }
+            }
+        });
+
         let categoryInitialized = false;
         let reconfigureActInProgress = false;
 
@@ -581,6 +697,9 @@
             if (!data || !data.single) return;
             $(".net_selector").each(function(){
                 $(this).replaceInputWithSelector(data, $(this).hasClass('net_selector_multi'));
+                if (entrypoint === 'source_nat') {
+                    $('#rule\\.target').attr('placeholder', "{{ lang._('Interface address') }}");
+                }
                 /* enforce single selection when "single host or network" or "any" are selected */
                 if ($(this).hasClass('net_selector_multi')) {
                     $("select[for='" + $(this).attr('id') + "']").on('shown.bs.select', function(){
@@ -631,7 +750,23 @@
         $("#reconfigureAct").SimpleActionButton({
             onPreAction() {
                 reconfigureActInProgress = true;
-                return $.Deferred().resolve();
+                if (entrypoint !== 'source_nat') {
+                    return $.Deferred().resolve();
+                }
+                const dfObj = new $.Deferred();
+                saveFormToEndpoint(
+                    "/api/firewall/source_nat/set",
+                    "frm_dialogSNatMode",
+                    function() {
+                        dfObj.resolve();
+                    },
+                    true,
+                    function() {
+                        reconfigureActInProgress = false;
+                        dfObj.reject();
+                    }
+                );
+                return dfObj.promise();
             },
             onAction(data, status) {
                 Promise.all([
@@ -639,10 +774,14 @@
                 ])
                 .finally(() => {
                     reconfigureActInProgress = false;
+                    // The search endpoint has different responses based on selected snat_mode
+                    updateSnatModeUI();
+                    $("#{{formGridRule['table_id']}}").bootgrid('reload');
                 });
             }
         });
 
+        setupSnatModeForm();  // All NAT pages have to call this to unhide the shared grid
         populateCategoriesSelectpicker();
 
     });
@@ -699,10 +838,6 @@
         visibility: hidden;
         pointer-events: none;
     }
-    .tree-enabled .tabulator-col.tabulator-row-header input[type="checkbox"] {
-        visibility: hidden;
-        pointer-events: none;
-    }
     .row-disabled {
         opacity: 0.4;
     }
@@ -732,6 +867,12 @@
             margin: 0;
         }
     }
+    .snat-mode-hidden {
+        display: none;
+    }
+    .snat-mode-readonly [class*="command-"] {
+        display: none;
+    }
 </style>
 
 <div class="tab-content content-box">
@@ -756,8 +897,12 @@
             </button>
         </div>
     </div>
-
-    {{ partial('layout_partials/base_bootgrid_table', formGridRule + {'command_width':'150'}) }}
+    {% if entrypoint == 'source_nat' %}
+        {{ partial("layout_partials/base_form", ['fields': formSnatMode, 'id': 'frm_dialogSNatMode']) }}
+    {% endif %}
+    <div id="rule_grid_container" class="snat-mode-hidden">
+        {{ partial('layout_partials/base_bootgrid_table', formGridRule + {'command_width':'150'}) }}
+    </div>
 </div>
 
 {{ partial('layout_partials/base_apply_button', {'data_endpoint': '/api/firewall/' ~ entrypoint ~ '/apply'}) }}

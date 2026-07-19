@@ -47,7 +47,7 @@ function ntpd_services()
 
     $pconfig = [];
     $pconfig['name'] = 'ntpd';
-    $pconfig['description'] = gettext('Network Time Daemon');
+    $pconfig['description'] = gettext('Ntpd');
     $pconfig['php']['restart'] = ['ntpd_configure_do'];
     $pconfig['php']['start'] = ['ntpd_configure_do'];
     /* the pidfile for ntpd is unreliable - DO NOT USE IT */
@@ -109,7 +109,8 @@ function ntpd_configure_gps($port)
     symlink($serialport, $gps_device);
 
     $gps_init = base64_decode(
-        $config['ntpd']['gps']['initcmd'] ??
+        !empty($config['ntpd']['gps']['initcmd']) ?
+        $config['ntpd']['gps']['initcmd'] :
         'JFBVQlgsNDAsR1NWLDAsMCwwLDAqNTkNCiRQVUJYLDQwLEdMTCwwLDAsMC' .
         'wwKjVDDQokUFVCWCw0MCxaREEsMCwwLDAsMCo0NA0KJFBVQlgsNDAsVlRH' .
         'LDAsMCwwLDAqNUUNCiRQVUJYLDQwLEdTViwwLDAsMCwwKjU5DQokUFVCWC' .
@@ -322,9 +323,11 @@ function ntpd_configure_do($verbose = false)
     $ispool = isset($config['ntpd']['ispool']) ? explode(' ', $config['ntpd']['ispool']) : [];
 
     $ntpcfg .= "\n\n# Upstream Servers\n";
-    /* foreach through ntp servers and write out to ntpd.conf */
+
     foreach (explode(' ', $config['system']['timeservers']) as $ts) {
-        /* Determine if Network Time Server is a pool or not */
+        /* do not allow newline injection */
+        $ts = str_replace(["\n", "\r"], '', $ts);
+
         if (in_array($ts, $ispool) || preg_match("/\.pool\.ntp\.org$/", $ts)) {
             $ntpcfg .= "pool {$ts}";
         } else {

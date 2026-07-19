@@ -454,6 +454,7 @@ class UIBootgrid {
 
         if (bootGridOptions?.disableScroll ?? false) {
             this.options.disableScroll = true;
+            this.compatOptions['height'] = false;
         }
 
         this.tabulatorOptions = compatOptions.tabulatorOptions ??= {};
@@ -677,7 +678,6 @@ class UIBootgrid {
 
         if (Math.abs(currentTotalHeight - nextHeight) > 1) {
             this.table.setHeight(nextHeight);
-            this.table.redraw();
         }
     }
 
@@ -745,11 +745,14 @@ class UIBootgrid {
         });
 
         const rememberTree = (row, open) => {
-            const id = row.getData()[this.options.datakey];
-            if (!id) return;
+            const data = row.getData();
+            const id = data[this.options.datakey];
+            // maintain scroll position regardless of persistence state
+            this._maintainScrollPosition(this.scrollPos);
+            if (!data._persistence || !id) return;
             open ? this.rememberedTreeIds.add(id) : this.rememberedTreeIds.delete(id);
             localStorage.setItem(this.treeStorageKey, JSON.stringify([...this.rememberedTreeIds]));
-            this._maintainScrollPosition(this.scrollPos);
+            this._setPersistence(true);
         };
 
         this.table.on('dataTreeRowExpanded',  (row) => rememberTree(row, true));
@@ -836,23 +839,28 @@ class UIBootgrid {
                 const pageObserver = new ResizeObserver(debounce((entries) => {
                     for (let entry of entries) {
                         const topDistance = document.getElementById(this.id).getBoundingClientRect().top;
-                        this.pageHeight = entry.contentRect.height - topDistance;
+                        let newHeight = entry.contentRect.height - topDistance;
                         if (this.options.bottomReserveElement) {
-                            this.pageHeight -= this.options.bottomReserveElement.getBoundingClientRect().height;
+                            newHeight -= this.options.bottomReserveElement.getBoundingClientRect().height;
                         }
-                        this._onDimensionChange();
+
+                        if (this.pageHeight != newHeight) {
+                            this.pageHeight = newHeight;
+                            this._onDimensionChange();
+                        }
                     }
                 }));
                 pageObserver.observe(pageTarget);
 
                 const tableObserver = new ResizeObserver(debounce((entries) => {
                     for (let entry of entries) {
-                        this.tableHeight = entry.contentRect.height;
-                        this._onDimensionChange();
+                        if (this.tableHeight != entry.contentRect.height) {
+                            this.tableHeight = entry.contentRect.height;
+                            this._onDimensionChange();
+                        }
                     }
                 }));
                 tableObserver.observe(tableTarget);
-
             }
 
             // make sure we redraw the table as it enters the viewport (multiple tabbed grids)
@@ -1863,6 +1871,16 @@ class UIBootgrid {
 
                 return cell.getValue() ? moment(parseInt(cell.getValue())*1000).format("lll") : "";
             },
+            isodatetime: (cell, formatterParams, onRendered) => {
+                onRendered(() => {
+                    this._onCellRendered(cell, formatterParams);
+                });
+                if (cell.getValue()) {
+                    return moment((new Date(cell.getValue())).getTime()).format("lll");
+                } else {
+                    return "";
+                }
+            },
             expand: (cell, formatterParams, onRendered) => {
                 const key = `%${cell.getColumn().getDefinition().field}`;
                 const data = cell.getData();
@@ -2299,27 +2317,37 @@ class UIBootgrid {
     }
 
     setColumns(columns) {
+        let redraw = false;
         this.table.getColumns().forEach((col) => {
             const def = col.getDefinition();
             if (columns.includes(def.field)) {
+                redraw = true;
                 col._silentToggle = true;
                 col.show();
                 delete col._silentToggle;
             }
         });
-        this.table.redraw();
+
+        if (redraw) {
+            this.table.redraw();
+        }
     }
 
     unsetColumns(columns) {
+        let redraw = false;
         this.table.getColumns().forEach((col) => {
             const def = col.getDefinition();
             if (columns.includes(def.field)) {
+                redraw = true;
                 col._silentToggle = true;
                 col.hide();
                 delete col._silentToggle;
             }
         });
-        this.table.redraw();
+
+        if (redraw) {
+            this.table.redraw();
+        }
     }
 
     search(value, event) {

@@ -80,7 +80,8 @@
 /usr/local/etc/pkg/fingerprints/OPNsense/revoked/pkg.opnsense.org.20240611
 /usr/local/etc/pkg/fingerprints/OPNsense/revoked/pkg.opnsense.org.20241217
 /usr/local/etc/pkg/fingerprints/OPNsense/revoked/pkg.opnsense.org.20250710
-/usr/local/etc/pkg/fingerprints/OPNsense/trusted/pkg.opnsense.org.20260120
+/usr/local/etc/pkg/fingerprints/OPNsense/revoked/pkg.opnsense.org.20260120
+/usr/local/etc/pkg/fingerprints/OPNsense/trusted/pkg.opnsense.org.20260608
 /usr/local/etc/rc
 /usr/local/etc/rc.bootup
 /usr/local/etc/rc.carp_service_status.d/.placeholder
@@ -313,6 +314,7 @@
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Firewall/forms/dialogFilterRule.xml
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Firewall/forms/dialogNptRule.xml
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Firewall/forms/dialogOneToOneRule.xml
+/usr/local/opnsense/mvc/app/controllers/OPNsense/Firewall/forms/dialogSNatMode.xml
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Firewall/forms/dialogSNatRule.xml
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Firewall/forms/geoIPSettings.xml
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Firewall/forms/groupEdit.xml
@@ -363,6 +365,7 @@
 /usr/local/opnsense/mvc/app/controllers/OPNsense/IPsec/forms/dialogSPD.xml
 /usr/local/opnsense/mvc/app/controllers/OPNsense/IPsec/forms/dialogVTI.xml
 /usr/local/opnsense/mvc/app/controllers/OPNsense/IPsec/forms/settings.xml
+/usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/Api/AssignmentController.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/Api/BridgeSettingsController.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/Api/GifSettingsController.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/Api/GreSettingsController.php
@@ -374,6 +377,7 @@
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/Api/VipSettingsController.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/Api/VlanSettingsController.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/Api/VxlanSettingsController.php
+/usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/AssignmentController.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/BridgeController.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/GifController.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/GreController.php
@@ -385,6 +389,7 @@
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/VipController.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/VlanController.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/VxlanController.php
+/usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/forms/dialogAssignment.xml
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/forms/dialogBridge.xml
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/forms/dialogGif.xml
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Interfaces/forms/dialogGre.xml
@@ -582,6 +587,7 @@
 /usr/local/opnsense/mvc/app/library/OPNsense/System/Status/DiskSpaceStatus.php
 /usr/local/opnsense/mvc/app/library/OPNsense/System/Status/DnsmasqOverrideStatus.php
 /usr/local/opnsense/mvc/app/library/OPNsense/System/Status/FirewallStatus.php
+/usr/local/opnsense/mvc/app/library/OPNsense/System/Status/HostDiscoveryStatus.php
 /usr/local/opnsense/mvc/app/library/OPNsense/System/Status/IDSOverrideStatus.php
 /usr/local/opnsense/mvc/app/library/OPNsense/System/Status/IPsecOverrideStatus.php
 /usr/local/opnsense/mvc/app/library/OPNsense/System/Status/LiveMediaStatus.php
@@ -652,6 +658,7 @@
 /usr/local/opnsense/mvc/app/models/OPNsense/Base/FieldTypes/OptionField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Base/FieldTypes/PortField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Base/FieldTypes/ProtocolField.php
+/usr/local/opnsense/mvc/app/models/OPNsense/Base/FieldTypes/StrictTextField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Base/FieldTypes/TextField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Base/FieldTypes/UniqueIdField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Base/FieldTypes/UpdateOnlyTextField.php
@@ -764,6 +771,7 @@
 /usr/local/opnsense/mvc/app/models/OPNsense/Firewall/FieldTypes/InterfaceField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Firewall/FieldTypes/NetworkMappedField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Firewall/FieldTypes/PortMappedField.php
+/usr/local/opnsense/mvc/app/models/OPNsense/Firewall/FieldTypes/SNatModeField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Firewall/FieldTypes/ScheduleField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Firewall/FieldTypes/SourceNatRuleField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Firewall/FieldTypes/TosField.php
@@ -817,6 +825,8 @@
 /usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/Bridge.xml
 /usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/FieldTypes/BridgeMemberField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/FieldTypes/DUIDField.php
+/usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/FieldTypes/DeviceField.php
+/usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/FieldTypes/IfDescField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/FieldTypes/LaggInterfaceField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/FieldTypes/LinkAddressField.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/FieldTypes/NeighborField.php
@@ -838,6 +848,8 @@
 /usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/Neighbor.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/Neighbor.xml
 /usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/Neighbor/README
+/usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/NetworkInterface.php
+/usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/NetworkInterface.xml
 /usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/Settings.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/Settings.xml
 /usr/local/opnsense/mvc/app/models/OPNsense/Interfaces/Vip.php
@@ -1005,6 +1017,7 @@
 /usr/local/opnsense/mvc/app/views/OPNsense/IPsec/spd.volt
 /usr/local/opnsense/mvc/app/views/OPNsense/IPsec/tunnels.volt
 /usr/local/opnsense/mvc/app/views/OPNsense/IPsec/vti.volt
+/usr/local/opnsense/mvc/app/views/OPNsense/Interface/assignment.volt
 /usr/local/opnsense/mvc/app/views/OPNsense/Interface/bridge.volt
 /usr/local/opnsense/mvc/app/views/OPNsense/Interface/gif.volt
 /usr/local/opnsense/mvc/app/views/OPNsense/Interface/gre.volt
@@ -1072,6 +1085,7 @@
 /usr/local/opnsense/mvc/tests/app/library/OPNsense/Firewall/FilterRuleTest/testDirection.conf
 /usr/local/opnsense/mvc/tests/app/library/OPNsense/Firewall/FilterRuleTest/testIcmp.conf
 /usr/local/opnsense/mvc/tests/app/library/OPNsense/Firewall/FilterRuleTest/testProtocol.conf
+/usr/local/opnsense/mvc/tests/app/library/OPNsense/Interface/IdassocTest.php
 /usr/local/opnsense/mvc/tests/app/models/OPNsense/ACL/AclConfig/config.xml
 /usr/local/opnsense/mvc/tests/app/models/OPNsense/ACL/AclTest.php
 /usr/local/opnsense/mvc/tests/app/models/OPNsense/Base/BaseModel/Migrations/M0_0_1.php
@@ -1109,6 +1123,7 @@
 /usr/local/opnsense/mvc/tests/app/models/OPNsense/Base/FieldTypes/OptionFieldTest.php
 /usr/local/opnsense/mvc/tests/app/models/OPNsense/Base/FieldTypes/PortFieldTest.php
 /usr/local/opnsense/mvc/tests/app/models/OPNsense/Base/FieldTypes/ProtocolFieldTest.php
+/usr/local/opnsense/mvc/tests/app/models/OPNsense/Base/FieldTypes/StrictTextFieldTest.php
 /usr/local/opnsense/mvc/tests/app/models/OPNsense/Base/FieldTypes/TextFieldTest.php
 /usr/local/opnsense/mvc/tests/app/models/OPNsense/Base/FieldTypes/UpdateOnlyTextFieldTest.php
 /usr/local/opnsense/mvc/tests/app/models/OPNsense/Base/FieldTypes/VirtualIPFieldTest.php
@@ -1179,6 +1194,7 @@
 /usr/local/opnsense/scripts/filter/lib/alias/uri.py
 /usr/local/opnsense/scripts/filter/lib/states.py
 /usr/local/opnsense/scripts/filter/list_divert_sockets.php
+/usr/local/opnsense/scripts/filter/list_legacy_outbound_nat.php
 /usr/local/opnsense/scripts/filter/list_legacy_rules.php
 /usr/local/opnsense/scripts/filter/list_non_mvc_rules.php
 /usr/local/opnsense/scripts/filter/list_osfp.py
@@ -1191,8 +1207,6 @@
 /usr/local/opnsense/scripts/filter/pftablecount.py
 /usr/local/opnsense/scripts/filter/pftop.py
 /usr/local/opnsense/scripts/filter/read_log.py
-/usr/local/opnsense/scripts/filter/rollback_cancel.php
-/usr/local/opnsense/scripts/filter/rollback_timer.php
 /usr/local/opnsense/scripts/filter/rule_stats.py
 /usr/local/opnsense/scripts/filter/run_unittests.py
 /usr/local/opnsense/scripts/filter/tests/__init__.py
@@ -1264,6 +1278,7 @@
 /usr/local/opnsense/scripts/health/library/OPNsense/RRD/Types/Wireless.php
 /usr/local/opnsense/scripts/health/listReports.py
 /usr/local/opnsense/scripts/health/updaterrd.php
+/usr/local/opnsense/scripts/interfaces/apply_pending_if_changes.php
 /usr/local/opnsense/scripts/interfaces/capture.py
 /usr/local/opnsense/scripts/interfaces/carp_global_status.php
 /usr/local/opnsense/scripts/interfaces/carp_set_status.php
@@ -1273,6 +1288,7 @@
 /usr/local/opnsense/scripts/interfaces/ifctl.sh
 /usr/local/opnsense/scripts/interfaces/lib/__init__.py
 /usr/local/opnsense/scripts/interfaces/list_arp.py
+/usr/local/opnsense/scripts/interfaces/list_assign_options.php
 /usr/local/opnsense/scripts/interfaces/list_hosts.py
 /usr/local/opnsense/scripts/interfaces/list_macdb.py
 /usr/local/opnsense/scripts/interfaces/list_ndp.py
@@ -2251,6 +2267,7 @@
 /usr/local/opnsense/www/js/widgets/Interfaces.js
 /usr/local/opnsense/www/js/widgets/IpsecLeases.js
 /usr/local/opnsense/www/js/widgets/IpsecTunnels.js
+/usr/local/opnsense/www/js/widgets/KeaLeases.js
 /usr/local/opnsense/www/js/widgets/LiveLog.js
 /usr/local/opnsense/www/js/widgets/Mbuf.js
 /usr/local/opnsense/www/js/widgets/Memory.js
@@ -2540,8 +2557,6 @@
 /usr/local/www/firewall_nat_out.php
 /usr/local/www/firewall_nat_out_edit.php
 /usr/local/www/firewall_rule_lookup.php
-/usr/local/www/firewall_rules.php
-/usr/local/www/firewall_rules_edit.php
 /usr/local/www/firewall_schedule.php
 /usr/local/www/firewall_schedule_edit.php
 /usr/local/www/firewall_scrub.php
@@ -2552,7 +2567,6 @@
 /usr/local/www/head.inc
 /usr/local/www/index.php
 /usr/local/www/interfaces.php
-/usr/local/www/interfaces_assign.php
 /usr/local/www/interfaces_ppps.php
 /usr/local/www/interfaces_ppps_edit.php
 /usr/local/www/interfaces_wireless.php
