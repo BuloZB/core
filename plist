@@ -182,7 +182,10 @@
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Base/ControllerBase.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Base/ControllerRoot.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Base/IndexController.php
+/usr/local/opnsense/mvc/app/controllers/OPNsense/Base/UserBaseException.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/Base/UserException.php
+/usr/local/opnsense/mvc/app/controllers/OPNsense/Base/UserInformationalException.php
+/usr/local/opnsense/mvc/app/controllers/OPNsense/Base/UserWarningException.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/CaptivePortal/Api/AccessController.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/CaptivePortal/Api/ServiceController.php
 /usr/local/opnsense/mvc/app/controllers/OPNsense/CaptivePortal/Api/SessionController.php
@@ -927,6 +930,7 @@
 /usr/local/opnsense/mvc/app/models/OPNsense/Trust/General.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Trust/General.xml
 /usr/local/opnsense/mvc/app/models/OPNsense/Trust/Migrations/M1_0_0.php
+/usr/local/opnsense/mvc/app/models/OPNsense/Trust/Migrations/M1_0_2.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Unbound/ACL/ACL.xml
 /usr/local/opnsense/mvc/app/models/OPNsense/Unbound/FieldTypes/AliasReflector.php
 /usr/local/opnsense/mvc/app/models/OPNsense/Unbound/FieldTypes/UnboundInterfaceField.php
@@ -1485,6 +1489,7 @@
 /usr/local/opnsense/service/conf/actions.d/actions_ntpd.conf
 /usr/local/opnsense/service/conf/actions.d/actions_openssh.conf
 /usr/local/opnsense/service/conf/actions.d/actions_openvpn.conf
+/usr/local/opnsense/service/conf/actions.d/actions_plugins.conf
 /usr/local/opnsense/service/conf/actions.d/actions_radvd.conf
 /usr/local/opnsense/service/conf/actions.d/actions_shaper.conf
 /usr/local/opnsense/service/conf/actions.d/actions_syslog.conf

@@ -27,10 +27,9 @@
  */
 namespace OPNsense\Firewall\Api;
 
-use OPNsense\Base\UserException;
+use OPNsense\Base\UserWarningException;
 use OPNsense\Core\Config;
 use OPNsense\Core\Backend;
-use OPNsense\Firewall\Alias;
 use OPNsense\Firewall\Category;
 use OPNsense\Firewall\Filter;
 use OPNsense\Firewall\Group;
@@ -289,7 +288,7 @@ class FilterController extends FilterBaseController
         $target_node = $this->getModel()->getNodeByReference('rules.rule.' . $target_uuid);
         $selected_node = $this->getModel()->getNodeByReference('rules.rule.' . $selected_uuid);
         if ($target_node === null || $selected_node === null) {
-            throw new UserException(
+            throw new UserWarningException(
                 gettext("Either source or destination is not a rule managed with this component"),
                 gettext("Filter")
             );
@@ -302,7 +301,7 @@ class FilterController extends FilterBaseController
             ];
             $selectedType = $typeNames[substr($selected_node->prio_group, 0, 1)] ?? gettext("Unknown");
             $targetType   = $typeNames[substr($target_node->prio_group, 0, 1)] ?? gettext("Unknown");
-            throw new UserException(
+            throw new UserWarningException(
                 sprintf(
                     gettext("Cannot move '%s Rule' before '%s Rule'."),
                     $selectedType,
@@ -311,7 +310,7 @@ class FilterController extends FilterBaseController
                 gettext("Filter")
             );
         } elseif ($selected_uuid === $target_uuid) {
-            throw new UserException(gettext("Cannot move to the same spot."), gettext("Filter"));
+            throw new UserWarningException(gettext("Cannot move to the same spot."), gettext("Filter"));
         }
         /* move the rule and optionally reorganize*/
         $step_size = 50;

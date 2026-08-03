@@ -386,20 +386,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             }
         }
 
-        write_config();
+        if (write_config()) {
+            configd_run('filter reload');
+            configd_run('service restart login');
+            configd_run('dns reload');
+            configd_run('plugins configure dns');
+            configd_run('plugins configure dhcp');
+            configd_run('openssh restart', true);
+
+            if ($restart_webgui) {
+                configd_run('webgui restart 3', true);
+            }
+        }
 
         $savemsg = get_std_save_message();
 
-        filter_configure();
-        system_login_configure();
-        system_resolver_configure();
-        plugins_configure('dns');
-        plugins_configure('dhcp');
-        configd_run('openssh restart', true);
-
-        if ($restart_webgui) {
-            configd_run('webgui restart 3', true);
-        }
     }
 }
 

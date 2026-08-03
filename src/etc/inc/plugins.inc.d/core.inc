@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Copyright (C) 2018-2025 Deciso B.V.
+ * Copyright (C) 2018-2026 Deciso B.V.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -90,6 +90,46 @@ function core_services()
         ],
         'pidfile' => '/var/run/syslog-ng.pid',
         'name' => 'syslog-ng',
+    ];
+
+    $services[] = [
+        'description' => gettext('Kernel modules'),
+        'php' => [
+            'restart' => ['system_kernel_configure'],
+        ],
+        'name' => 'kernel',
+        'nocheck' => true,
+        'noshow' => true,
+    ];
+
+    $services[] = [
+        'description' => gettext('Powerd'),
+        'php' => [
+            'restart' => ['system_powerd_configure'],
+        ],
+        'name' => 'powerd',
+        'nocheck' => true,
+        'noshow' => true,
+    ];
+
+    $services[] = [
+        'description' => gettext('Timezone'),
+        'php' => [
+            'restart' => ['system_timezone_configure'],
+        ],
+        'name' => 'timezone',
+        'nocheck' => true,
+        'noshow' => true,
+    ];
+
+    $services[] = [
+        'description' => gettext('Hostname'),
+        'php' => [
+            'restart' => ['system_hostname_configure'],
+        ],
+        'name' => 'hostname',
+        'nocheck' => true,
+        'noshow' => true,
     ];
 
     return $services;
@@ -202,6 +242,7 @@ function core_devices()
     }
 
     $devices[] = [
+        'function' => 'interfaces_vlan_configure',
         'pattern' => '_vlan|^vlan|^qinq',
         'names' => $vlan_names,
         'volatile' => true,
