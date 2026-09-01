@@ -287,7 +287,10 @@
                         return '<i class="fa-solid fa-fw fa-check-square" data-toggle="tooltip" title="{{ lang._('Enabled') }}"></i>';;
                     },
                     interface: function (column) {
-                        return '<i class="fa-solid fa-fw fa-network-wired" data-toggle="tooltip" title="{{ lang._('Network interface') }}"></i>';
+                        return '<span class="text-nowrap" data-toggle="tooltip" title="{{ lang._('Interface (rule)') }}"><i class="fa-solid fa-fw fa-network-wired"></i> {{ lang._('Rule') }}</span>';
+                    },
+                    'received-on': function (column) {
+                        return '<span class="text-nowrap" data-toggle="tooltip" title="{{ lang._('Interface (origin)') }}"><i class="fa-solid fa-fw fa-network-wired"></i> {{ lang._('Origin') }}</span>';
                     },
                     evaluations: function (column) {
                         return '<i class="fa-solid fa-fw fa-bullseye" data-toggle="tooltip" title="{{ lang._('Number of rule evaluations') }}"></i>';
@@ -428,7 +431,10 @@
 
                         // Only single interfaces can be negated
                         if (!interfaces.includes(",")) {
-                            return (row.interfacenot == 1 ? "! " : "") + interfaces;
+                            const invertField = Object.keys(row).find(
+                                field => field.startsWith(column.id) && field.endsWith("not")
+                            );
+                            return (row[invertField] == 1 ? "! " : "") + interfaces;
                         }
 
                         const interfaceList = interfaces.split(",");
@@ -507,7 +513,7 @@
                         let tooltip;
                         if (usedAdvancedFields.length > 0) {
                             iconClass = "text-warning";
-                            tooltip = `{{ lang._("Advanced mode enabled") }}<br>${usedAdvancedFields.join("<br>")}`;
+                            tooltip = htmlSafe(`{{ lang._("Advanced mode enabled") }}<br>${usedAdvancedFields.join("<br>")}`);
                         } else {
                             iconClass = "text-muted";
                             tooltip = "{{ lang._('Advanced mode disabled') }}";

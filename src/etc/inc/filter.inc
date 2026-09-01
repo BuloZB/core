@@ -169,7 +169,7 @@ function filter_configure_sync($verbose = false, $load_aliases = true)
     \OPNsense\Firewall\Alias::flushCacheData();
 
     /* Use filter lock to not allow concurrent filter reloads during this run. */
-    $fobj = new \OPNsense\Core\FileObject('/tmp/rules.debug', 'a+', 0600, LOCK_EX);
+    $fobj = new \OPNsense\Core\FileObject('/tmp/rules.debug', 'a+e', 0600, LOCK_EX);
 
     /*
      * Kickstart dnctl and ipfw (no-op if shaper not configured)
@@ -199,7 +199,7 @@ function filter_configure_sync($verbose = false, $load_aliases = true)
         if (!empty($config['nat']['outbound']['rule'])) {
             foreach ($config['nat']['outbound']['rule'] as $rule) {
                 if (is_array($rule)) {
-                    $fw->registerSNatRule(100, $rule);
+                    $fw->registerSourceNatRule(100, $rule);
                 }
             }
         }
@@ -220,26 +220,20 @@ function filter_configure_sync($verbose = false, $load_aliases = true)
 
             foreach ($networks as $network => $unused) {
                 $rule['source'] = ['network' => $network];
-                $fw->registerSNatRule(200, $rule);
+                $fw->registerSourceNatRule(200, $rule);
             }
         }
     }
 
     /* prevent redirection on ports with "lock out" protection */
-    foreach (filter_core_get_antilockout() as $lockoutif => $lockoutprts) {
-        foreach ($lockoutprts as $port) {
-            $fw->registerForwardRule(300, [
-                'descr' => 'Anti-lockout; prevent redirects for protected ports to this interface address',
-                'destination' => ['network' => "{$lockoutif}ip", 'port' => $port],
-                'interface' => $lockoutif,
-                'nordr' => true,
-                'protocol' => 'tcp',
-            ]);
-        }
+    foreach (filter_auto_destination_nat() as $rule) {
+        $fw->registerDestinationNatRule(300, $rule);
     }
 
     foreach ((new OPNsense\Firewall\DNat())->rule->sortedBy(['sequence']) as $key => $rule) {
-        $fw->registerForwardRule(600, $rule->getNodeContent());
+        $node = $rule->getNodeContent();
+        $node['local-port'] = $rule->{'local-port'}->normalizedPort();
+        $fw->registerDestinationNatRule(600, $node);
     }
 
     /**

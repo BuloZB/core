@@ -54,17 +54,16 @@ class SourceNatController extends FilterBaseController
 
     public function getAction()
     {
-        $data = parent::getAction();
         return [
             self::$internalModelName => [
-                'general' => $data[self::$internalModelName]['general']
+                'general' => $this->getModel()->general->getNodes()
             ]
         ];
     }
 
     private function getAutomaticOutboundNatRules(): array
     {
-        $automatic_rules = (json_decode((new Backend())->configdRun('filter list automatic_outbound_nat'), true))['pf'] ?? [];
+        $automatic_rules = (json_decode((new Backend())->configdRun('filter list automatic_source_nat'), true))['pf'] ?? [];
         $config = Config::getInstance()->object();
         $rows = [];
         $sequence = 1;
@@ -200,11 +199,11 @@ class SourceNatController extends FilterBaseController
 
     public function downloadRulesAction()
     {
-        return $this->downloadRulesBase('snatrules.rule', ['sort_order', 'prio_group']);
+        return $this->downloadRulesBase('snatrules.rule');
     }
 
     public function uploadRulesAction()
     {
-        return $this->uploadRulesBase('snatrules.rule', ['sort_order', 'prio_group']);
+        return $this->uploadRulesBase('snatrules.rule');
     }
 }

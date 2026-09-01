@@ -85,7 +85,7 @@ function interfaces_loopback_configure($verbose = false)
     service_log('Configuring loopback interface...', $verbose);
 
     legacy_interface_setaddress('lo0', '127.0.0.1/8');
-    interfaces_vips_configure('lo0');
+    interfaces_vips_configure('lo0', null, false);
     legacy_interface_flags('lo0', 'up');
 
     service_log("done.\n", $verbose);
@@ -156,22 +156,9 @@ function _interfaces_vlan_configure($vlan)
 
 function interfaces_wlan_clone($device)
 {
-    global $config;
-
-    foreach (array_keys(get_configured_interface_with_descr()) as $if) {
-        if (!isset($config['interfaces'][$if]['wireless'])) {
-            continue;
-        }
-        if ($device == $config['interfaces'][$if]['if']) {
-            return _interfaces_wlan_clone($device, $config['interfaces'][$if]);
-        }
-    }
-
-    if (isset($config['wireless']['clone'])) {
-        foreach ($config['wireless']['clone'] as $clone) {
-            if ($device == $clone['cloneif']) {
-                return _interfaces_wlan_clone($clone['cloneif'], $clone);
-            }
+    foreach (config_read_array('wireless', 'clone', false) as $clone) {
+        if ($device == $clone['cloneif']) {
+            return _interfaces_wlan_clone($clone['cloneif'], $clone);
         }
     }
 
@@ -541,7 +528,9 @@ function _interfaces_gif_configure($gif)
         ]);
     }
 
-    $flags = (empty($gif['link1']) ? "-" : "") . "link1 " . (empty($gif['link2']) ? "-" : "") . "link2";
+    $flags = (empty($gif['link1']) ? '-' : '') . 'link1 ' .
+        (empty($gif['link2']) ? '-' : '') . 'link2 ' .
+        (empty($gif['noclamp']) ? '-' : '') . 'noclamp';
     legacy_interface_flags($gif['gifif'], $flags);
 
     legacy_interface_flags($gif['gifif'], 'up');
@@ -569,11 +558,10 @@ function _interfaces_hardware($device, $intf_details = null)
 {
     global $config;
 
-    /* XXX this needs fixing, lots of devices are not capable */
     if (
-        strstr($device, 'vlan') || strpos($device, 'qinq') === 0 ||
-        strpos($device, 'lo') === 0 || strpos($device, 'vxlan') === 0 ||
-        strpos($device, 'ipsec') === 0 || strpos($device, '/') === 0
+        str_starts_with($device, 'vlan') || str_starts_with($device, 'qinq') === 0 ||
+        strstr($device, '_vlan') || str_starts_with($device, 'lo') ||
+        str_starts_with($device, 'vxlan') || str_starts_with($device, 'ipsec')
     ) {
         /* skip checksumming  */
         return;
@@ -708,19 +696,19 @@ function interfaces_configure($verbose = false)
         /* XXX use this to figure out when bridges can be configured */
         $interfaces[$if] = $ifcfg['if'];
 
-        if (!empty($devices[$ifcfg['if']]) && !strstr($ifcfg['if'], 'bridge')) {
+        if (!empty($devices[$ifcfg['if']]) && !str_starts_with($ifcfg['if'], 'bridge')) {
             $virtual[$ifcfg['if']] = $if;
             continue;
         }
 
         $is_track6 = !empty($ifcfg['ipaddrv6']) && in_array($ifcfg['ipaddrv6'], ['idassoc6', 'track6']);
-        if (!strstr($ifcfg['if'], 'bridge') && $is_track6) {
+        if (!str_starts_with($ifcfg['if'], 'bridge') && $is_track6) {
             $track6[$ifcfg['if']] = $if;
             continue;
         }
 
         $is_dhcp6c = !empty($ifcfg['ipaddrv6']) && ($ifcfg['ipaddrv6'] == 'dhcp6' || $ifcfg['ipaddrv6'] == 'slaac');
-        if (strstr($ifcfg['if'], 'bridge') && !$is_dhcp6c) {
+        if (str_starts_with($ifcfg['if'], 'bridge') && !$is_dhcp6c) {
             $bridge[$ifcfg['if']] = $if;
             continue;
         } elseif ($is_dhcp6c) {
@@ -754,7 +742,7 @@ function interfaces_configure($verbose = false)
             }
 
             /* post-op: removing associated devices and current interface */
-            foreach (interface_configure($verbose, $if) as $loaded) {
+            foreach (interface_configure($verbose, $if, false, false, true) as $loaded) {
                 if (!empty($devices[$loaded])) {
                     log_msg("Device $loaded loaded by $if, skipping now", LOG_INFO);
                     unset($devices[$loaded]);
@@ -782,6 +770,9 @@ function interfaces_configure($verbose = false)
         log_msg("Device $device is not assigned, configuring late");
         call_user_func_array($devices[$device], [$device]);
     }
+
+    interfaces_pfsync_configure();
+    interface_proxyarp_configure();
 }
 
 function interface_vip_bring_down($vip)
@@ -844,7 +835,7 @@ function interface_reset($interface, $ifacecfg = false, $suspend = false)
      * interface is down.  They will also use 100% CPU if running after
      * the wireless clone gets deleted.
      */
-    if (isset($ifcfg['wireless'])) {
+    if (strpos($device, '_wlan') !== false) {
         kill_wpasupplicant($device);
         kill_hostapd($device);
     }
@@ -989,16 +980,17 @@ function interface_ppps_capable($ifcfg, $ppps)
 
 function interface_ppps_hardware($device)
 {
-    $devices = [$device];
+    $devices = [];
+
+    /* avoid returning a /dev parent by excluding 'ppp' prefix */
+    if (strpos($device, 'pppoe') !== 0 && strpos($device, 'pptp') !== 0 && strpos($device, 'l2tp') !== 0) {
+        return $devices;
+    }
 
     foreach (config_read_array('ppps', 'ppp', false) as $ppp) {
         if ($device == $ppp['if']) {
-            $devices = [];
             foreach (explode(',', $ppp['ports']) as $port) {
-                /*
-                 * XXX We only have get_real_interface() here because
-                 * PPP may be assigned to an assigned interface!  :(
-                 */
+                /* XXX ppp stores ports as configured interfaces or devices */
                 $devices[] = get_real_interface($port);
             }
             break;
@@ -1464,7 +1456,7 @@ function interface_proxyarp_configure($interface = '')
     }
 }
 
-function interfaces_vips_configure($interface, $family = null)
+function interfaces_vips_configure($interface, $family = null, $reload = true)
 {
     $proxyarp = false;
     $pfsync = false;
@@ -1498,11 +1490,11 @@ function interfaces_vips_configure($interface, $family = null)
         }
     }
 
-    if ($pfsync) {
+    if ($pfsync && $reload) {
         interfaces_pfsync_configure();
     }
 
-    if ($proxyarp) {
+    if ($proxyarp && $reload) {
         interface_proxyarp_configure();
     }
 
@@ -1629,7 +1621,7 @@ function _interfaces_wlan_clone($device, $wlcfg)
      */
     $needs_clone = false;
 
-    if (!empty($wlcfg['wireless']['mode'])) {
+    if (!empty($wlcfg['wireless']) && !empty($wlcfg['wireless']['mode'])) {
         /* XXX this is interfaces wireless config */
         $wlcfg_mode = $wlcfg['wireless']['mode'];
     } else {
@@ -1656,7 +1648,7 @@ function _interfaces_wlan_clone($device, $wlcfg)
     }
 
     if ($needs_clone) {
-        $baseif = interface_get_wireless_base($wlcfg['if']);
+        $baseif = interface_get_wlan_base($wlcfg['if']);
 
         legacy_interface_destroy($device);
 
@@ -1682,108 +1674,17 @@ function _interfaces_wlan_clone($device, $wlcfg)
     return $device;
 }
 
-function interface_sync_wireless_clones(&$ifcfg, $sync_changes = false) /* XXX kill side effect */
+function interface_wlan_configure($if)
 {
     global $config;
 
-    $shared_settings = [
-        'channel',
-        'diversity',
-        'protmode',
-        'regcountry',
-        'regdomain',
-        'reglocation',
-        'rxantenna',
-        'standard',
-        'turbo',
-        'txantenna',
-        'txpower',
-    ];
-
-    $baseif = interface_get_wireless_base($ifcfg['if']);
-
-    foreach (array_keys(legacy_config_get_interfaces(['virtual' => false])) as $if) {
-        if ($baseif == interface_get_wireless_base($config['interfaces'][$if]['if']) && $ifcfg['if'] != $config['interfaces'][$if]['if']) {
-            if (isset($config['interfaces'][$if]['wireless']['standard']) || $sync_changes) {
-                foreach ($shared_settings as $setting) {
-                    if ($sync_changes) {
-                        if (isset($ifcfg['wireless'][$setting])) {
-                            $config['interfaces'][$if]['wireless'][$setting] = $ifcfg['wireless'][$setting];
-                        } elseif (isset($config['interfaces'][$if]['wireless'][$setting])) {
-                            unset($config['interfaces'][$if]['wireless'][$setting]);
-                        }
-                    } else {
-                        if (isset($config['interfaces'][$if]['wireless'][$setting])) {
-                            $ifcfg['wireless'][$setting] = $config['interfaces'][$if]['wireless'][$setting];
-                        } elseif (isset($ifcfg['wireless'][$setting])) {
-                            unset($ifcfg['wireless'][$setting]);
-                        }
-                    }
-                }
-                if (!$sync_changes) {
-                    break;
-                }
-            }
-        }
-    }
-
-    // Read or write settings at shared area
-    if (!empty($config['wireless']['interfaces'][$baseif])) {
-        foreach ($shared_settings as $setting) {
-            if ($sync_changes) {
-                if (isset($ifcfg['wireless'][$setting])) {
-                    $config['wireless']['interfaces'][$baseif][$setting] = $ifcfg['wireless'][$setting];
-                } elseif (isset($config['wireless']['interfaces'][$baseif][$setting])) {
-                    unset($config['wireless']['interfaces'][$baseif][$setting]);
-                }
-            } elseif (isset($config['wireless']['interfaces'][$baseif][$setting])) {
-                if (isset($config['wireless']['interfaces'][$baseif][$setting])) {
-                    $ifcfg['wireless'][$setting] = $config['wireless']['interfaces'][$baseif][$setting];
-                } elseif (isset($ifcfg['wireless'][$setting])) {
-                    unset($ifcfg['wireless'][$setting]);
-                }
-            }
-        }
-    }
-
-    // Sync the mode on the clone creation page with the configured mode on the interface
-    if (strstr($ifcfg['if'], '_wlan') && !empty($config['wireless']['clone'])) {
-        foreach ($config['wireless']['clone'] as &$clone) {
-            if ($clone['cloneif'] == $ifcfg['if']) {
-                if ($sync_changes) {
-                    $clone['mode'] = $ifcfg['wireless']['mode'];
-                } else {
-                    $ifcfg['wireless']['mode'] = $clone['mode'];
-                }
-                break;
-            }
-        }
-        unset($clone);
-    }
-}
-
-function interface_wireless_configure($if, &$wancfg)
-{
-    global $config;
-
-    if (!isset($wancfg['wireless'])) {
+    if (strpos($if, '_wlan') === false) {
         return;
     }
 
-    if (empty($wancfg['wireless'])) {
-        /* if an empty node reset to empty array to avoid PHP 8+ issues */
-        $wancfg['wireless'] = [];
-    }
+    $wlcfg = (new \OPNsense\Interfaces\Wlan())->getInterface($if);
 
-    /* XXX _interfaces_wlan_clone() and interface_sync_wireless_clones() need work */
-
-    // Clone wireless nic if needed.
-    _interfaces_wlan_clone($if, $wancfg);
-
-    // Reject inadvertent changes to shared settings in case the interface hasn't been configured.
-    interface_sync_wireless_clones($wancfg, false);
-
-    $wlcfg = &$wancfg['wireless'];
+    _interfaces_wlan_clone($if, $wlcfg);
 
    /*
     * Open up a shell script that will be used to output the commands.
@@ -1804,7 +1705,7 @@ function interface_wireless_configure($if, &$wancfg)
     /* Make sure it's up */
     $wlcmd[] = "up";
 
-    if (isset($wlcfg['standard'])) {
+    if (!empty($wlcfg['standard'])) {
         /* Set a/b/g standard */
         $standard = str_replace(" Turbo", "", $wlcfg['standard']);
         $wlcmd[] = "mode " . escapeshellarg($standard);
@@ -1818,18 +1719,18 @@ function interface_wireless_configure($if, &$wancfg)
         }
     }
 
-    if (isset($wlcfg['ssid'])) {
+    if (!empty($wlcfg['ssid'])) {
         /* Set ssid */
         $wlcmd[] = "ssid " . escapeshellarg($wlcfg['ssid']);
     }
 
-    if (isset($wlcfg['protmode'])) {
+    if (isset($wlcfg['protmode']) && $wlcfg['protmode'] != '') {
         /* Set 802.11g protection mode */
         $wlcmd[] = "protmode " . escapeshellarg($wlcfg['protmode']);
     }
 
     /* set wireless channel value */
-    if (isset($wlcfg['channel'])) {
+    if (isset($wlcfg['channel']) && $wlcfg['channel'] != '') {
         if ($wlcfg['channel'] == "0") {
             $wlcmd[] = "channel any";
         } else {
@@ -1838,17 +1739,17 @@ function interface_wireless_configure($if, &$wancfg)
     }
 
     /* Set antenna diversity value */
-    if (isset($wlcfg['diversity'])) {
+    if (isset($wlcfg['diversity']) && $wlcfg['diversity'] != '') {
         $wl_sysctl[] = "diversity=" . escapeshellarg($wlcfg['diversity']);
     }
 
     /* Set txantenna value */
-    if (isset($wlcfg['txantenna'])) {
+    if (isset($wlcfg['txantenna']) && $wlcfg['txantenna'] != '') {
         $wl_sysctl[] = "txantenna=" . escapeshellarg($wlcfg['txantenna']);
     }
 
     /* Set rxantenna value */
-    if (isset($wlcfg['rxantenna'])) {
+    if (isset($wlcfg['rxantenna']) && $wlcfg['rxantenna'] != '') {
         $wl_sysctl[] = "rxantenna=" . escapeshellarg($wlcfg['rxantenna']);
     }
 
@@ -1869,49 +1770,49 @@ function interface_wireless_configure($if, &$wancfg)
     /* Not necessary to set BSS mode as this is default if adhoc and/or hostap is NOT set */
 
     /* handle hide ssid option */
-    if (isset($wlcfg['hidessid']['enable'])) {
+    if (!empty($wlcfg['hidessid'])) {
         $wlcmd[] = "hidessid";
     } else {
         $wlcmd[] = "-hidessid";
     }
 
     /* handle pureg (802.11g) only option */
-    if (isset($wlcfg['pureg']['enable'])) {
+    if (!empty($wlcfg['pureg'])) {
         $wlcmd[] = "mode 11g pureg";
     } else {
         $wlcmd[] = "-pureg";
     }
 
     /* handle puren (802.11n) only option */
-    if (isset($wlcfg['puren']['enable'])) {
+    if (!empty($wlcfg['puren'])) {
         $wlcmd[] = "puren";
     } else {
         $wlcmd[] = "-puren";
     }
 
     /* enable apbridge option */
-    if (isset($wlcfg['apbridge']['enable'])) {
+    if (!empty($wlcfg['apbridge'])) {
         $wlcmd[] = "apbridge";
     } else {
         $wlcmd[] = "-apbridge";
     }
 
     /* handle turbo option */
-    if (isset($wlcfg['turbo']['enable'])) {
+    if (!empty($wlcfg['turbo'])) {
         $wlcmd[] = "mediaopt turbo";
     } else {
         $wlcmd[] = "-mediaopt turbo";
     }
 
     /* handle wme option */
-    if (isset($wlcfg['wme']['enable'])) {
+    if (!empty($wlcfg['wme'])) {
         $wlcmd[] = "wme";
     } else {
         $wlcmd[] = "-wme";
     }
 
     /* set up wep if enabled */
-    if (isset($wlcfg['wep']['enable']) && is_array($wlcfg['wep']['key'])) {
+    if (!empty($wlcfg['wep']['enable']) && !empty($wlcfg['wep']['keys'])) {
         $wepset = '';
         switch ($wlcfg['wpa']['auth_algs']) {
             case "1":
@@ -1924,13 +1825,11 @@ function interface_wireless_configure($if, &$wancfg)
                 $wepset .= "authmode mixed wepmode on ";
         }
         $i = 1;
-        foreach ($wlcfg['wep']['key'] as $wepkey) {
-            $wepset .= "wepkey " . escapeshellarg("{$i}:{$wepkey['value']}") . " ";
-            if (isset($wepkey['txkey'])) {
-                $wlcmd[] = "weptxkey {$i} ";
-            }
+        foreach (explode("\n", $wlcfg['wep']['keys']) as $wepkey) {
+            $wepset .= "wepkey " . escapeshellarg("{$i}:{$wepkey}") . " ";
             $i++;
         }
+        $wlcmd[] = "weptxkey 1 ";
         $wlcmd[] = $wepset;
     } else {
         $wlcmd[] = 'authmode open wepmode off';
@@ -1943,8 +1842,8 @@ function interface_wireless_configure($if, &$wancfg)
     switch ($wlcfg['mode'] ?? 'bss') {
         case 'bss':
             $authentication = [];
-            if (isset($wlcfg['wpa']['enable'])) {
-                if ($wlcfg['wpa']['wpa_key_mgmt'] == 'WPA-EAP' && isset($wlcfg['wpa']['wpa_eap_method'])) {
+            if (!empty($wlcfg['wpa']['enable'])) {
+                if ($wlcfg['wpa']['wpa_key_mgmt'] == 'WPA-EAP' && !empty($wlcfg['wpa']['wpa_eap_method'])) {
                     switch ($wlcfg['wpa']['wpa_eap_method']) {
                         case 'PEAP':
                         case 'TTLS':
@@ -1965,14 +1864,14 @@ function interface_wireless_configure($if, &$wancfg)
 
                             $all_certs = [];
                             // Generate CA cert and client cert to file
-                            foreach ($config['ca'] as $ca) {
+                            foreach (config_read_array('ca', false) as $ca) {
                                 if ($wlcfg['wpa']['wpa_eap_cacertref'] == $ca['refid']) {
                                     $all_certs["/var/etc/wpa_supplicant_{$if}_ca.crt"] =
                                         base64_decode($ca['crt']);
                                     $authentication[] = "ca_cert=\"/var/etc/wpa_supplicant_{$if}_ca.crt\"";
                                 }
                             }
-                            foreach ($config['cert'] as $cert) {
+                            foreach (config_read_array('cert', false) as $cert) {
                                 if ($wlcfg['wpa']['wpa_eap_cltcertref'] == $cert['refid']) {
                                     $all_certs["/var/etc/wpa_supplicant_{$if}_clt.crt"] =
                                         base64_decode($cert['crt']);
@@ -2020,7 +1919,7 @@ EOD;
             } else {
                 $wpa_passphrase = "";
             }
-            if (isset($wlcfg['wpa']['enable'])) {
+            if (!empty($wlcfg['wpa']['enable'])) {
                 $wpa = <<<EOD
 interface={$if}
 driver=bsd
@@ -2047,7 +1946,7 @@ wpa_strict_rekey={$wlcfg['wpa']['wpa_strict_rekey']}
 
 EOD;
 
-                if (isset($wlcfg['wpa']['rsn_preauth'])) {
+                if (!empty($wlcfg['wpa']['rsn_preauth'])) {
                     $wpa .= <<<EOD
 # Enable the next lines for preauth when roaming. Interface = wired or wireless interface talking to the AP you want to roam from/to
 rsn_preauth=1
@@ -2055,7 +1954,7 @@ rsn_preauth_interfaces={$if}
 
 EOD;
                 }
-                if (is_array($wlcfg['wpa']['ieee8021x']) && isset($wlcfg['wpa']['ieee8021x']['enable'])) {
+                if (!empty($wlcfg['wpa']['ieee8021x'])) {
                     $wpa .= "ieee8021x=1\n";
 
                     if (!empty($wlcfg['auth_server_addr']) && !empty($wlcfg['auth_server_shared_secret'])) {
@@ -2096,7 +1995,7 @@ EOD;
      *    all variables are set, lets start up everything
      */
 
-    $baseif = interface_get_wireless_base($if);
+    $baseif = interface_get_wlan_base($if);
     preg_match("/^(.*?)([0-9]*)$/", $baseif, $baseif_split);
     $wl_sysctl_prefix = 'dev.' . $baseif_split[1] . '.' . $baseif_split[2];
 
@@ -2108,7 +2007,7 @@ EOD;
         }
     }
 
-    if (isset($wlcfg['wpa']['enable'])) {
+    if (!empty($wlcfg['wpa']['enable'])) {
         if ($wlcfg['mode'] == "bss") {
             fwrite($fd_set, exec_safe('/usr/local/sbin/wpa_supplicant -B -i %s -c %s', [$if, "/var/etc/wpa_supplicant_{$if}.conf"]) . PHP_EOL);
         }
@@ -2140,17 +2039,16 @@ EOD;
         $reg_changing = true;
     }
 
+
     if ($reg_changing) {
         /* build a complete list of the wireless clones for this interface */
         $clone_list = [];
         if (does_interface_exist("{$baseif}_wlan0")) {
             $clone_list[] = "{$baseif}_wlan0";
         }
-        if (isset($config['wireless']['clone'])) {
-            foreach ($config['wireless']['clone'] as $clone) {
-                if ($clone['if'] == $baseif) {
-                    $clone_list[] = $clone['cloneif'];
-                }
+        foreach (config_read_array('wireless', 'clone', false) as $clone) {
+            if ($clone['if'] == $baseif) {
+                $clone_list[] = $clone['cloneif'];
             }
         }
 
@@ -2201,7 +2099,7 @@ EOD;
                 $friendly_if = convert_real_interface_to_friendly_interface_name($clone_if);
                 if (
                     !empty($friendly_if)
-                    && isset($config['interfaces'][$friendly_if]['wireless']['wpa']['enable'])
+                    && !empty($config['interfaces'][$friendly_if]['wireless']['wpa']['enable'])
                     && $config['interfaces'][$friendly_if]['wireless']['mode'] == 'bss'
                 ) {
                     mwexecf('/bin/sh %s', "/tmp/{$clone_if}_setup.sh");
@@ -2293,7 +2191,7 @@ function interface_configure_mtu($device, $mtu, $ifconfig_details)
 {
     global $config;
 
-    if (strstr($device, 'vlan') || strstr($device, 'qinq')) {
+    if (str_starts_with($device, 'vlan') || str_starts_with($device, 'qinq') || strstr($device, '_vlan')) {
         $parent_device = interface_parent_devices($device)[0];
         $parent_mtu = $mtu + 4;
         $force = false;
@@ -2316,7 +2214,7 @@ function interface_configure_mtu($device, $mtu, $ifconfig_details)
     }
 }
 
-function interface_configure($verbose = false, $interface = 'wan', $reload = false, $linkup = false)
+function interface_configure($verbose = false, $interface = 'wan', $reload = false, $linkup = false, $batch = false)
 {
     global $config;
 
@@ -2330,17 +2228,19 @@ function interface_configure($verbose = false, $interface = 'wan', $reload = fal
     $wandescr = !empty($wancfg['descr']) ? $wancfg['descr'] : strtoupper($interface);
     $ifdescr = sprintf('%s (%s)', $wandescr, $interface);
 
-    $device = $wancfg['if'];
+    $device = $realhwif = $wancfg['if'];
     $realifv6 = get_real_interface($interface, 'inet6');
 
     $all_devices = plugins_devices();
 
-    /* get the correct hardware interface if PPP is involved or return the one we have */
-    $realhwif = interface_ppps_hardware($device)[0]; /* XXX support all MLPPP devices */
+    $ppps_hardware = interface_ppps_hardware($device);
+    if (count($ppps_hardware)) {
+        $realhwif = $ppps_hardware[0]; /* XXX support all MLPPP devices */
+    }
 
     if ($reload) {
         foreach ($all_devices as $one_device) {
-            if (empty($one_device['function']) || empty($one_device['names'])) {
+            if (empty($one_device['function']) || empty($one_device['names']) || !$one_device['reload']) {
                 continue;
             }
 
@@ -2352,15 +2252,10 @@ function interface_configure($verbose = false, $interface = 'wan', $reload = fal
     }
 
     $ifconfig_details = legacy_interfaces_details();
-    if (
-        (strpos($realhwif, '/') === false && empty($ifconfig_details[$realhwif])) ||
-        (strpos($realhwif, '/') === 0 && !file_exists($realhwif))
-    ) {
+    if ($device != $realhwif && empty($ifconfig_details[$realhwif])) {
         log_msg(sprintf('Unable to configure nonexistent interface %s (%s)', $interface, $realhwif), LOG_ERR);
         return $loaded;
     }
-
-    /* XXX mpd5 $realhwif may be a device node path */
 
     service_log(sprintf('Configuring %s interface...', $wandescr), $verbose);
 
@@ -2374,7 +2269,7 @@ function interface_configure($verbose = false, $interface = 'wan', $reload = fal
 
     if (!$linkup) {
         /* XXX wireless configuration: shouldn't live in interface config */
-        interface_wireless_configure($device, $wancfg);
+        interface_wlan_configure($device);
     }
 
     /* get expected and current MAC address from the configuration and system */
@@ -2476,10 +2371,10 @@ function interface_configure($verbose = false, $interface = 'wan', $reload = fal
         mwexecf('/sbin/ifconfig %s %spromisc', [$realhwif, empty($wancfg['promisc']) ? '-' : '']);
     }
 
-    /* apply interface hardware settings (tso, lro, ..) */
+    /* apply interface hardware settings (TSO, LRO, ..) */
     _interfaces_hardware($realhwif, $ifconfig_details);
 
-    if (!empty($wancfg['mtu']) && strpos($realhwif, '/') === false) {
+    if (!empty($wancfg['mtu'])) {
         interface_configure_mtu($realhwif, $wancfg['mtu'], $ifconfig_details);
     }
 
@@ -2539,7 +2434,7 @@ function interface_configure($verbose = false, $interface = 'wan', $reload = fal
             break;
     }
 
-    interfaces_vips_configure($interface);
+    interfaces_vips_configure($interface, null, !$batch);
     interfaces_neighbors_configure($interface, $ifconfig_details);
 
     /* XXX device member plugin hook */
@@ -2624,7 +2519,7 @@ function interface_track6_6rd_configure($interface, $lancfg)
     $hexwanv4 = return_hex_ipv4($ip4address);
 
     /* create the long prefix notation for math, save the prefix length */
-    $rd6prefix = explode("/", $wancfg['prefix-6rd']);
+    $rd6prefix = explode('/', $wancfg['prefix-6rd']);
     $rd6prefixlen = $rd6prefix[1];
     $rd6prefix = Net_IPv6::uncompress($rd6prefix[0]);
 
@@ -2722,7 +2617,7 @@ function interface_6rd_configure($interface, $wancfg, $update = false)
     }
 
     /* create the long prefix notation for math, save the prefix length */
-    $rd6prefix = explode("/", $wancfg['prefix-6rd']);
+    $rd6prefix = explode('/', $wancfg['prefix-6rd']);
     $rd6prefix_isp = $rd6prefix[0];
     $rd6prefixlen = $rd6prefix[1];
     $rd6prefix = Net_IPv6::uncompress($rd6prefix[0]);
@@ -3035,6 +2930,10 @@ function DHCP6_Config_File_Basic($interface, $wancfg, $wanif, $default_id)
 
         $dhcp6cconf .= "interface {$wanif} {\n";
 
+        if (!empty($wancfg['dhcp6-information-only'])) {
+            $dhcp6cconf .= "  information-only;\n";
+        }
+
         if (!isset($wancfg['dhcp6prefixonly'])) {
             /* request non-temporary address */
             $dhcp6cconf .= "  send ia-na {$default_id};\n";
@@ -3054,6 +2953,17 @@ function DHCP6_Config_File_Basic($interface, $wancfg, $wanif, $default_id)
         if (empty($wancfg['dhcp6_norequest_dns'])) {
             $dhcp6cconf .= "  request domain-name-servers;\n";
             $dhcp6cconf .= "  request domain-name;\n";
+        }
+
+        if (!empty($wancfg['dhcp6_send_options'])) {
+            foreach (explode("\n", $wancfg['dhcp6_send_options']) as $line) {
+                $dhcp6cconf .= sprintf("  send %s;\n", $line);
+            }
+        }
+        if (!empty($wancfg['dhcp6_request_options'])) {
+            foreach (explode("\n", $wancfg['dhcp6_request_options']) as $line) {
+                $dhcp6cconf .= sprintf("  request %s;\n", $line);
+            }
         }
 
         $dhcp6cconf .= "  script \"/usr/local/opnsense/scripts/interfaces/dhcp6c_script.sh\";\n";
@@ -3343,6 +3253,14 @@ function interface_dhcp_configure($interface = 'wan')
     $conf .= interfaces_dhcp_safe('  supersede interface-mtu %s;', 0, empty($wancfg['dhcphonourmtu']));
     $conf .= interfaces_dhcp_safe('  reject %s;', $wancfg['dhcprejectfrom'], !empty($wancfg['dhcprejectfrom']));
     $conf .= interfaces_dhcp_safe('  vlan-pcp %s;', $wancfg['dhcpvlanprio'] ?? '', isset($wancfg['dhcpvlanprio']));
+    foreach (['dhcp_send_options' => 'send' , 'dhcp_request_options' => 'request'] as $prop => $tag) {
+        if (!empty($wancfg[$prop])) {
+            foreach (explode("\n", $wancfg[$prop]) as $line) {
+                $option = interfaces_dhcp_split($line)[0]; /* only one per line */
+                $conf .= interfaces_dhcp_safe(sprintf('  %s %s;', $tag, implode(' ', $option['frmt'])), $option['args']);
+            }
+        }
+    }
     $conf .= interfaces_dhcp_safe('}');
 
     // DHCP Config File Advanced
@@ -3559,29 +3477,28 @@ function convert_friendly_interface_to_friendly_descr($interface)
     return $ifdesc;
 }
 
-/* collect hardware device parents for VLAN, LAGG and bridges */
-function interface_parent_devices($device, $as_interface = false)
+function interface_parent_devices($device)
 {
     $parents = [];
 
-    if (strstr($device, 'vlan') || strstr($device, 'qinq')) {
+    if (str_starts_with($device, 'vlan') || str_starts_with($device, 'qinq') || strstr($device, '_vlan')) {
         foreach (config_read_array('vlans', 'vlan', false) as $vlan) {
             if ($device == $vlan['vlanif']) {
                 $parents[] = $vlan['if'];
                 break;
             }
         }
-    } elseif (strstr($device, 'bridge')) {
+    } elseif (str_starts_with($device, 'bridge')) {
         foreach (config_read_array('bridges', 'bridged', false) as $bridge) {
             if ($device == $bridge['bridgeif']) {
                 foreach (explode(',', $bridge['members'] ?? '') as $member) {
-                    /* bridge stores members as configured interfaces */
-                    $parents[] = $as_interface ? $member : get_real_interface($member);
+                    /* XXX bridge stores members as configured interfaces */
+                    $parents[] = get_real_interface($member);
                 }
                 break;
             }
         }
-    } elseif (strstr($device, 'lagg')) {
+    } elseif (str_starts_with($device, 'lagg')) {
         foreach (config_read_array('laggs', 'lagg', false) as $lagg) {
             if ($device == $lagg['laggif']) {
                 foreach (explode(',', $lagg['members']) as $member) {
@@ -3590,12 +3507,16 @@ function interface_parent_devices($device, $as_interface = false)
                 break;
             }
         }
+    } else {
+        foreach (interface_ppps_hardware($device) as $parent) {
+            $parents[] = $parent;
+        }
     }
 
     return $parents;
 }
 
-function interface_get_wireless_base($wlif)
+function interface_get_wlan_base($wlif)
 {
     if (!strstr($wlif, '_wlan')) {
         return $wlif;
